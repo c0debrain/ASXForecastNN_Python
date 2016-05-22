@@ -11,7 +11,7 @@ def norm(x,binCount,n,SD,mean):
     x = np.arange(lowLim,upLim,(upLim - lowLim)/100.0)
     return x,area*np.exp(-(x-mean)*(x-mean)/(2*SD*SD))/(SD*math.sqrt(2*math.pi))
 
-def correlationHeatMap(data,labels):
+def correlationHeatMap(data,labels,title):
     
     array = np.array(data)
     corrMat = np.abs(np.corrcoef(array))
@@ -19,6 +19,7 @@ def correlationHeatMap(data,labels):
     fig, ax = plt.subplots()
     heatmap = ax.pcolor(corrMat,cmap='RdBu')
     plt.colorbar(heatmap)
+    plt.title(title)
     
     # put the major ticks at the middle of each cell
     ax.set_xticks(np.arange(array.shape[0])+0.5, minor=False)
@@ -28,11 +29,11 @@ def correlationHeatMap(data,labels):
     ax.invert_yaxis()
     ax.xaxis.tick_top()
     
-    ax.set_xticklabels(labels, minor=False)
+    ax.set_xticklabels(labels, minor=False,rotation = 'vertical')
     ax.set_yticklabels(labels, minor=False)
     plt.show()
 
-def plotHist(data,binCount,plotLabels):
+def plotHist(data,binCount,plotLabels,title):
     
     numInputs = len(data)
     numSubPlotsPerFig = 4    
@@ -49,6 +50,7 @@ def plotHist(data,binCount,plotLabels):
     
     for i in range(1,numFigs+1):
         plt.figure(i)
+        plt.title(title+' - Figure ' + str(i))
         for j in range(1,numSubPlotsPerFig+1):
             dataIdx = numSubPlotsPerFig*(i-1) +j-1
             if(dataIdx < numInputs):
@@ -64,7 +66,7 @@ def plotHist(data,binCount,plotLabels):
 
     plt.show()
     
-def subPlotData(datesData,pricesData,plotLabels):
+def subPlotData(datesData,pricesData,plotLabels,title):
     
     numSubPlotsPerFig = 4    
     assert(len(datesData) == len(pricesData)),"Number of dates not equal to number of prices"   
@@ -81,6 +83,7 @@ def subPlotData(datesData,pricesData,plotLabels):
     
     for i in range(1,numFigs+1):
         plt.figure(i)
+        plt.title(title+' - Figure ' + str(i))
         for j in range(1,numSubPlotsPerFig+1):
             dataIdx = numSubPlotsPerFig*(i-1) +j-1
             if(dataIdx < len(datesData)):

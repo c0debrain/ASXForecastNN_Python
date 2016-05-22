@@ -11,6 +11,7 @@ import math
 from sklearn import datasets, preprocessing
 from sklearn.cross_validation import train_test_split
 from neupy import algorithms, layers, estimators, environment
+from numbers import Real
 
 environment.reproducible()
 
@@ -60,10 +61,10 @@ numericDataIndex = 1
 returnsCalcOption = 'LOG_DIFF'
 
 #choose data between these dates 
-# startDate = datetime.datetime(2000, 4, 6)
-# endDate = datetime.datetime(2016, 4, 29)
-startDate = datetime.datetime(2016, 4, 4)
-endDate = datetime.datetime(2016, 5, 2)
+startDate = datetime.datetime(2000, 4, 6)
+endDate = datetime.datetime(2003, 4, 29)
+# startDate = datetime.datetime(2016, 4, 4)
+# endDate = datetime.datetime(2016, 5, 2)
 
 assert(startDate.isoweekday() in range(1, 6)),"startDate is not a weekday - choose another startDate"
 assert(endDate.isoweekday() in range(1, 6)),"endDate is not a weekday - choose another endDate"
@@ -128,24 +129,27 @@ for inputChoice in pricesInputs:
     assert(returnsData[len(returnsData)-1].count(None) == 0),"Computed Returns Data: '" + labels[len(labels)-1] + "' contains missing values"
     assert(pricesDates[len(pricesDates)-1].count(None) == 0),"Dates for: '" + labels[len(labels)-1] + "' contains missing values"
 
-customPlot.subPlotData(pricesDates,pricesData,labels)
-customPlot.correlationHeatMap(pricesData,labels)
+customPlot.subPlotData(pricesDates,pricesData,labels,'Prices Data')
+customPlot.correlationHeatMap(pricesData,labels,'Prices Correlation Heatmap')
 
 targetLabel = 'ASX200_INTRADAY_'+returnsCalcOption+'_RETS'
 targetOpenPriceLabel = 'ASX200_DAILY_PX_OPEN'
 targetLastPriceLabel = 'ASX200_DAILY_PX_LAST'
     
 targetChoice = 'LEVEL'
+# targetChoice = 'DIRECTION'
+if(targetChoice == 'DIRECTION'):
+    classifyDirection = 'DUAL_VEC'
 
 if targetLabel in labels:
     target = returnsData[labels.index(targetLabel)]
     if(targetChoice == 'DIRECTION'):
-        target = [math.copysign(1,target[i]) for i in range(len(target))]
+        target = [util.classifyReturnDirection(math.copysign(1,target[i]),classifyDirection) for i in range(len(target))]
     targetDates = returnsDates[labels.index(targetOpenPriceLabel)]    
 else:
     target,targetDates = util.getIntraDayReturns(pricesData[labels.index(targetOpenPriceLabel)],pricesData[labels.index(targetLastPriceLabel)],pricesDates[labels.index(targetLastPriceLabel)],returnsCalcOption)
     if(targetChoice == 'DIRECTION'):
-        target = [math.copysign(1,target[i]) for i in range(len(target))]
+        target = [util.classifyReturnDirection(math.copysign(1,target[i]),classifyDirection) for i in range(len(target))]
     returnsData.append(target)
     returnsDates.append(targetDates)
     labels.append(targetLabel)
@@ -176,8 +180,8 @@ for predictor in predictorInputs:
         predictorInputData.append(returnsData[dataIdx])
 
 binCount = 50
-customPlot.plotHist(returnsData,binCount,labels)
-customPlot.plotHist(predictorInputData,binCount,predictorLabels)
+customPlot.plotHist(returnsData,binCount,labels,'Returns Data Histogram')
+customPlot.plotHist(predictorInputData,binCount,predictorLabels,'Predictor Variable Histogram')
 
 # check all predictor variables allocated correctly 
 # then scale inputs and train
@@ -186,29 +190,38 @@ customPlot.plotHist(predictorInputData,binCount,predictorLabels)
 predictorInputData_scaler = preprocessing.StandardScaler()
 target_scaler = preprocessing.MinMaxScaler()
 
-# x_train, x_test, y_train, y_test = train_test_split(
-#     data_scaler.fit_transform(predictorInputData),
-#     target_scaler.fit_transform(target),
-#      train_size=0.85
-#  )
+npArrayPredictorInputData = np.transpose(np.array(predictorInputData))
+npArrayTarget = np.transpose(np.array(target))
+
+# x_train = npArrayPredictorInputData
+# y_train = npArrayTarget
 # 
-# cgnet = algorithms.ConjugateGradient(
-#      connection=[
-#          layers.Tanh(13),
-#         layers.Tanh(50),
-#          layers.RoundedOutput(1, decimals=1),
-#      ],
-#      search_method='golden',
-#      update_function='fletcher_reeves',
-#      addons=[algorithms.LinearSearch],
-#      verbose=False
-#      )
-# 
-# cgnet.train(x_train, y_train, epochs=100)
-# y_predict = cgnet.predict(x_test)
-# 
-# real = target_scaler.inverse_transform(y_test)
-# predicted = target_scaler.inverse_transform(y_predict)
-# 
-# error = estimators.rmsle(real, predicted)
+# x_test = x_train
+# y_test = y_train
+
+x_train, x_test, y_train, y_test = train_test_split(
+    predictorInputData_scaler.fit_transform(npArrayPredictorInputData),
+    target_scaler.fit_transform(npArrayTarget),
+     train_size=0.85
+ )
+ 
+cgnet = algorithms.ConjugateGradient(
+     connection=[
+        layers.Tanh(len(predictorInputData)),
+        layers.Tanh(12),
+        layers.Output(1),
+     ],
+     search_method='golden',
+     update_function='fletcher_reeves',
+     addons=[algorithms.LinearSearch],
+     verbose=True
+     )
+ 
+cgnet.train(x_train, y_train, epochs=10)
+y_predict = cgnet.predict(x_test)
+ 
+real = target_scaler.inverse_transform(y_test)
+predicted = target_scaler.inverse_transform(y_predict)
+ 
+error = estimators.rmsle(real, predicted)
 

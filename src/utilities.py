@@ -1,5 +1,20 @@
 import math
 
+def classifyReturnDirection(signReturn,option):
+    positiveReturn = [1.0, -1.0]
+    negativeReturn = [-1.0, 1.0]
+    
+    if(option == 'DUAL_VEC'):
+        if(signReturn > 0):
+            output = positiveReturn
+        else:
+            output = negativeReturn
+    elif(option == 'SINGLE_VEC'):
+        output = signReturn
+        
+    return output
+    
+
 def getReturns(prices,dates,option):
     returns = []
     for idx in range(1,len(prices)):
