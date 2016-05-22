@@ -16,7 +16,7 @@ def load_obj(filename ):
         return pickle.load(f)
 
 def checkIncreasingDates(lsDates):
-    for i in range(0,len(lsDates)-2):
+    for i in range(len(lsDates)-1):
         if(lsDates[i] >=  lsDates[i+1]):
             return False        
     return True
@@ -29,10 +29,22 @@ def returnColDataInPeriod(startDate,finishDate,workSheetName,codeString,workbook
     assert((sheetDates[0] <= startDate) & (sheetDates[len(sheetDates)-1] >= startDate)),"Start date is not in the data list"
     assert((sheetDates[0] <= finishDate) & (sheetDates[len(sheetDates)-1] >= finishDate)),"Finish date is not in the data list"
 
-    rows = [i for i in range(len(sheetDates)) if ((sheetDates[i] >= startDate) & (sheetDates[i] <= finishDate)) ]
-    colNumeric = [workbookNumericData[workSheetName][i][colIndex] for i in rows]
-    colDates =  [sheetDates[i] for i in rows]
+    rows = [i for i in range(len(sheetDates)) if ((sheetDates[i] >= startDate) & (sheetDates[i] <= finishDate))]
     
+    colNumeric = []
+    colDates = []
+    
+    for idx, i in enumerate(rows):   
+        colDates.append(sheetDates[i])
+        colNumeric.append(workbookNumericData[workSheetName][i][colIndex])
+        #get the data entry in that row and check if it is missing
+        # if its not the first row, replace with previous otherwise set to 0.0
+        if (colNumeric[idx] is None):
+            if(idx > 0):
+                colNumeric[idx] = colNumeric[idx-1]
+            else:
+                colNumeric[idx] = 0.0
+                     
     requestedColData = []
     requestedColData.append(colDates)
     requestedColData.append(colNumeric)
@@ -112,7 +124,6 @@ if __name__ == "__main__":
                           'CPI',
                           'US T-Bill 3MO',
                           'US T-Bill 1Y',
-                          'S&P ASX 200 (XJO)',
                           'Indices'
                           ]   
     #the first row entry in the corresponding worksheet containing the row of codes 
@@ -126,9 +137,9 @@ if __name__ == "__main__":
                                11,
                                6,
                                6,
-                               6,
                                2,
                                 ]
+    
     readExcelSpreadsheet_SaveInputs(fileName,workbookSheetNames,firstRowOfCodesPerSheet)
 
     ASX_ForecastNN_Numeric = load_obj('ASX_ForecastNN_Numeric')
