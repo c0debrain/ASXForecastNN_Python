@@ -19,7 +19,7 @@ def correlationHeatMap(data,labels,title):
     fig, ax = plt.subplots()
     heatmap = ax.pcolor(corrMat,cmap='RdBu')
     plt.colorbar(heatmap)
-    plt.title(title)
+    plt.xlabel(title)
     
     # put the major ticks at the middle of each cell
     ax.set_xticks(np.arange(array.shape[0])+0.5, minor=False)
@@ -46,32 +46,36 @@ def plotHist(data,binCount,plotLabels,title):
         else :
             numFigs = div + 1
     else:
+        numSubPlotsPerFig = rem
         numFigs = 1
     
     for i in range(1,numFigs+1):
         plt.figure(i)
-        plt.title(title+' - Figure ' + str(i))
         for j in range(1,numSubPlotsPerFig+1):
             dataIdx = numSubPlotsPerFig*(i-1) +j-1
             if(dataIdx < numInputs):
                 x = np.array(data[dataIdx])
-                subplotFig = 200+20+j
+                if(numSubPlotsPerFig == 4):
+                    subplotFig = 200+20+j
+                else:
+                    subplotFig = numSubPlotsPerFig*100+10+j
                 plt.subplot(subplotFig)
                 plt.hist(x,binCount)
                 z,pdf = norm(x,binCount,x.shape[0],np.std(x),np.mean(x))
                 plt.plot(z,pdf,'r')
                 plt.xlabel(plotLabels[dataIdx])
                 plt.ylabel('Instances')
-                plt.grid(True)       
+                plt.grid(True)   
+                plt.title(title+' - Figure ' + str(dataIdx+1))    
 
     plt.show()
     
-def subPlotData(datesData,pricesData,plotLabels,title):
+def subPlotData(x_data,y_data,plotLabels,title):
     
     numSubPlotsPerFig = 4    
-    assert(len(datesData) == len(pricesData)),"Number of dates not equal to number of prices"   
-    div = int(math.floor(len(datesData)/numSubPlotsPerFig))
-    rem = len(datesData)%numSubPlotsPerFig
+    assert(len(x_data) == len(y_data)),"Number of dates not equal to number of prices"   
+    div = int(math.floor(len(x_data)/numSubPlotsPerFig))
+    rem = len(x_data)%numSubPlotsPerFig
     
     if(div != 0):
         if(rem == 0):
@@ -79,19 +83,23 @@ def subPlotData(datesData,pricesData,plotLabels,title):
         else :
             numFigs = div + 1
     else:
+        numSubPlotsPerFig = rem
         numFigs = 1
     
     for i in range(1,numFigs+1):
         plt.figure(i)
-        plt.title(title+' - Figure ' + str(i))
         for j in range(1,numSubPlotsPerFig+1):
             dataIdx = numSubPlotsPerFig*(i-1) +j-1
-            if(dataIdx < len(datesData)):
-                subplotFig = 200+20+j
+            if(dataIdx < len(x_data)):
+                if(numSubPlotsPerFig == 4):
+                    subplotFig = 200+20+j
+                else:
+                    subplotFig = numSubPlotsPerFig*100+10+j
                 plt.subplot(subplotFig)
-                plt.plot(datesData[dataIdx], pricesData[dataIdx], 'b')
+                plt.plot(x_data[dataIdx], y_data[dataIdx], 'b')
                 plt.xlabel('Time')
                 plt.ylabel(plotLabels[dataIdx])
                 plt.grid(True)       
-
+                plt.title(title+' - Figure ' + str(dataIdx+1))
     plt.show()
+    

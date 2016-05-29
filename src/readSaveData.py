@@ -1,9 +1,29 @@
 from datetime import datetime
 import openpyxl
+import dill
 try :
     import cPickle as pickle
 except:
     import pickle
+
+class dataContainer:
+    def __init__(self,pricesData,pricesDates,pricesLabels,returnsData,returnsDates,returnsLabels):
+        self.pricesData = pricesData
+        self.pricesDates = pricesDates
+        self.pricesLabels = pricesLabels
+        self.returnsData = returnsData
+        self.returnsDates = returnsDates
+        self.returnsLabels = returnsLabels   
+        
+# Store network (serialize)
+def save_network(network, filename):
+    with open(filename + '.dill', 'wb') as f:
+        dill.dump(network, f)
+
+# Load network (deserialize)
+def load_network(filename):
+    with open(filename+ '.dill', 'rb') as f:
+        return dill.load(f)
 
 # Store data (serialize)
 def save_obj(obj, filename):
