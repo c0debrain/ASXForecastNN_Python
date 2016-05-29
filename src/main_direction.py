@@ -7,6 +7,7 @@ import numpy as np
 import utilities as util
 import matplotlib.pyplot as plt
 import math
+import networkTrainingSetup as setup
 
 from sklearn import datasets, preprocessing
 from sklearn.cross_validation import train_test_split
@@ -15,7 +16,7 @@ from numbers import Real
 
 environment.reproducible()
 
-showPlots = 0;
+showPlots = 0
 
 # 1 means re-read xlsx spreadhseet and then save data objects based on spreadsheet details below
 # otherwise use previously saved data objects (.pickle files) as inputs 
@@ -109,14 +110,35 @@ pricesInputs.append(['AUD10Y_GOVT','Indices','XM1_Comdty',lagAsianMarketClose])
 pricesInputs.append(['USD10Y_GOVT','Indices','TY1_Comdty',lagAmericanMarketClose])
 pricesInputs.append(['USDJPY_CURRENCY','Indices','USDJPY_Curncy',lagAmericanMarketClose])
 
-labels = []
+useReturn = 0
+usePrice = 1
+predictorInputs = []
+predictorInputs.append(['S&P500_DAILY_PX_LAST',useReturn])
+predictorInputs.append(['STFINL_DAILY_PX_LAST',useReturn])
+predictorInputs.append(['SHCOMP_DAILY_PX_LAST',useReturn])
+predictorInputs.append(['ASX200_INDX_GROSS_DAILY_DIV',usePrice])
+predictorInputs.append(['AUDUSD_CURRENCY',useReturn])
+predictorInputs.append(['XAU_CURRENCY',useReturn])
+predictorInputs.append(['CRUDEOIL_COMMODITY',useReturn])
+predictorInputs.append(['90D_BANKBILL',useReturn])
+predictorInputs.append(['AUD10Y_GOVT',useReturn])
+predictorInputs.append(['USD10Y_GOVT',useReturn])
+predictorInputs.append(['USDJPY_CURRENCY',useReturn])
+
+targetOpenPriceLabel = 'ASX200_DAILY_PX_OPEN'
+targetLastPriceLabel = 'ASX200_DAILY_PX_LAST'
+targetLabel = 'ASX200_INTRADAY_'+returnsCalcOption+'_RETS'
+targetChoice = 'DIRECTION'
+
+pricesLabels = []
 pricesData = []
 pricesDates = []
+
+returnsLabels = []
 returnsData = []
 returnsDates = []
 
 for inputChoice in pricesInputs:
-    labels.append(inputChoice[dataPlotLabelsIdx])
     code = inputChoice[dataCodeIdx]
     dataLocation = inputChoice[dataWorksheetIdx]
     lag = inputChoice[lagIdx]
@@ -132,145 +154,156 @@ for inputChoice in pricesInputs:
         inputEndDate = inputEndDate + datetime.timedelta(days=-2) 
            
     requestedData = getData.returnColDataInPeriod(inputStartDate,inputEndDate,dataLocation,code,ASX_ForecastNN_SheetNames,ASX_ForecastNN_Dates,ASX_ForecastNN_Unicodes,ASX_ForecastNN_Numeric)
-    pricesData.append(requestedData[numericDataIndex])
-    pricesDates.append(requestedData[datesIndex])
-
-    rets,retsDates = util.getReturns(requestedData[numericDataIndex],requestedData[datesIndex],returnsCalcOption)
-    returnsData.append(rets)
-    returnsDates.append(retsDates)
- 
-    assert(pricesData[len(pricesData)-1].count(None) == 0),"Gathered Price Data: '" + labels[len(labels)-1] + "' contains missing values"
-    assert(returnsData[len(returnsData)-1].count(None) == 0),"Computed Returns Data: '" + labels[len(labels)-1] + "' contains missing values"
-    assert(pricesDates[len(pricesDates)-1].count(None) == 0),"Dates for: '" + labels[len(labels)-1] + "' contains missing values"
-
-if (showPlots):
-    customPlot.subPlotData(pricesDates,pricesData,labels,'Prices Data')
-    customPlot.correlationHeatMap(pricesData,labels,'Prices Correlation Heatmap')
-
-targetLabel = 'ASX200_INTRADAY_'+returnsCalcOption+'_RETS'
-targetOpenPriceLabel = 'ASX200_DAILY_PX_OPEN'
-targetLastPriceLabel = 'ASX200_DAILY_PX_LAST'
+    pricesData, pricesDates, pricesLabels = util.appendData(requestedData[numericDataIndex],
+                                                       requestedData[datesIndex], 
+                                                       inputChoice[dataPlotLabelsIdx], 
+                                                       pricesData,
+                                                       pricesDates,
+                                                       pricesLabels)
     
-#targetChoice = 'LEVEL'
-targetChoice = 'DIRECTION'
+    rets,retsDates = util.getReturns(requestedData[numericDataIndex],requestedData[datesIndex],returnsCalcOption)
+    returnsData, returnsDates, returnsLabels = util.appendData(rets,
+                                                   retsDates, 
+                                                   inputChoice[dataPlotLabelsIdx], 
+                                                   returnsData,
+                                                   returnsDates,
+                                                   returnsLabels)
+ 
+    assert(pricesData[len(pricesData)-1].count(None) == 0),"Gathered Price Data: '" + pricesLabels[len(pricesLabels)-1] + "' contains missing values"
+    assert(returnsData[len(returnsData)-1].count(None) == 0),"Computed Returns Data: '" + returnsLabels[len(returnsLabels)-1] + "' contains missing values"
+    assert(pricesDates[len(pricesDates)-1].count(None) == 0),"Dates for: '" + pricesLabels[len(pricesLabels)-1] + "' contains missing values"
+    assert(returnsDates[len(returnsDates)-1].count(None) == 0),"Dates for: '" + returnsLabels[len(returnsLabels)-1] + "' contains missing values"
+
+dataContainer = getData.dataContainer(pricesData,pricesDates,pricesLabels,returnsData,returnsDates,returnsLabels)
+
+if(showPlots):
+    customPlot.subPlotData(dataContainer.pricesDates,dataContainer.pricesData,dataContainer.pricesLabels,'Prices Data')
+    customPlot.correlationHeatMap(dataContainer.pricesData,dataContainer.pricesLabels,'Prices Correlation Heatmap')
+
 if(targetChoice == 'DIRECTION'):
-    classifyDirection = 'SINGLE_VEC' #single_vec
-
-if targetLabel in labels:
-    target = returnsData[labels.index(targetLabel)]
-    if(targetChoice == 'DIRECTION'):
-        target = [util.classifyReturnDirection(math.copysign(1,target[i]),classifyDirection) for i in range(len(target))]
-    targetDates = returnsDates[labels.index(targetOpenPriceLabel)]    
+    targetLabel = targetLabel +'_DIR'
+    classifyDirection = 'SINGLE_VEC'
 else:
-    target,targetDates = util.getIntraDayReturns(pricesData[labels.index(targetOpenPriceLabel)],pricesData[labels.index(targetLastPriceLabel)],pricesDates[labels.index(targetLastPriceLabel)],returnsCalcOption)
+    classifyDirection = None
+
+isIntraDayClassification = 0
+
+if ((targetLabel in dataContainer.returnsLabels) | (targetLabel in dataContainer.pricesLabels)):
+    target, targetDates, targetPrices, targetPricesDates = setup.createTarget(dataContainer,targetLabel,targetChoice,classifyDirection,returnsCalcOption) 
+    targetLabel = targetLabel +'_RETS'
     if(targetChoice == 'DIRECTION'):
-        target = [util.classifyReturnDirection(math.copysign(1,target[i]),classifyDirection) for i in range(len(target))]
-    returnsData.append(target)
-    returnsDates.append(targetDates)
-    labels.append(targetLabel)
+        targetLabel = targetLabel +'_DIR'
+else:
+    isIntraDayClassification = 1
+    target, targetDates, targetOpenPrices, targetPrices, targetPricesDates = setup.createIntraDayTarget(dataContainer,targetOpenPriceLabel,targetLastPriceLabel,targetLabel,targetChoice,classifyDirection,returnsCalcOption) 
 
-predictorInputs = []
-useReturn = 0
-usePrice = 1
+npArrayTarget = util.convertTargetListToNumpyArray(target)
+npArrayTargetPrices = np.array(targetPrices)
+if(isIntraDayClassification):
+    npArrayTargetOpenPrices = np.array(targetOpenPrices)
 
-predictorInputs.append(['S&P500_DAILY_PX_LAST',useReturn])
-predictorInputs.append(['STFINL_DAILY_PX_LAST',useReturn])
-predictorInputs.append(['SHCOMP_DAILY_PX_LAST',useReturn])
-predictorInputs.append(['ASX200_INDX_GROSS_DAILY_DIV',usePrice])
-predictorInputs.append(['AUDUSD_CURRENCY',useReturn])
-predictorInputs.append(['XAU_CURRENCY',useReturn])
-predictorInputs.append(['CRUDEOIL_COMMODITY',useReturn])
-predictorInputs.append(['90D_BANKBILL',useReturn])
-predictorInputs.append(['AUD10Y_GOVT',useReturn])
-predictorInputs.append(['USD10Y_GOVT',useReturn])
-predictorInputs.append(['USDJPY_CURRENCY',useReturn])
-
-predictorInputData = []
-predictorLabels = []
-
-for predictor in predictorInputs:
-    dataIdx = labels.index(predictor[0])
-    if(predictor[1] == usePrice):
-        predictorLabels.append(labels[dataIdx])
-        #get copy of prices data and
-        #remove first price to match number of inputs from returns vectors
-        copyPricesData = pricesData[dataIdx][:]
-        copyPricesData.pop(0)
-        predictorInputData.append(copyPricesData)
-    elif(predictor[1] == useReturn):
-        predictorLabels.append(labels[dataIdx]+'_'+ returnsCalcOption+'_RETS')
-        predictorInputData.append(returnsData[dataIdx])
+predictorInputData,predictorLabels =  setup.createPredictorVariables(dataContainer,predictorInputs,returnsCalcOption)
+#convert all targets to numpy arrays
+npArrayPredictorInputData = np.transpose(np.array(predictorInputData))
 
 binCount = 50
-if (showPlots):
-    customPlot.plotHist(returnsData,binCount,labels,'Returns Data Histogram')
+if(showPlots):
+    customPlot.plotHist(dataContainer.returnsData,binCount,dataContainer.returnsLabels,'Returns Data Histogram')
     customPlot.plotHist(predictorInputData,binCount,predictorLabels,'Predictor Variable Histogram')
+    customPlot.plotHist([target],binCount,[targetLabel],'Target Histogram')
 
 # check all predictor variables allocated correctly 
-# then scale inputs and train
-
-# scale inputs and output
+# scale inputs and output and train
+#standardise inputs 
 predictorInputData_scaler = preprocessing.StandardScaler()
-target_scaler = preprocessing.MinMaxScaler()
+target_scalerMLP = preprocessing.MinMaxScaler(feature_range=(-0.5, 0.5))
+target_scalerPNN = preprocessing.MinMaxScaler(feature_range=(0, 1))
 
-npArrayPredictorInputData = np.transpose(np.array(predictorInputData))
-npArrayTarget = np.transpose(np.array(target))
-
-# x_train = npArrayPredictorInputData
-# y_train = npArrayTarget
-# 
-# x_test = x_train
-# y_test = y_train
-
-x_train, x_test, y_train, y_test = train_test_split(
+# split and apply pre-processing to data
+x_trainMLP, x_testMLP, y_trainMLP, y_testMLP = train_test_split(
     predictorInputData_scaler.fit_transform(npArrayPredictorInputData),
-    target_scaler.fit_transform(npArrayTarget),
-    train_size=0.85
- )
+    target_scalerMLP.fit_transform(npArrayTarget),
+    train_size=0.6
+)
+
+# split and apply pre-processing to data
+x_trainPNN, x_testPNN, y_trainPNN, y_testPNN = train_test_split(
+    predictorInputData_scaler.fit_transform(npArrayPredictorInputData),
+    target_scalerPNN.fit_transform(npArrayTarget),
+    train_size=0.6
+)
+
+if(showPlots):
+    #check the scaling and standardising of inputs 
+    predictorInputDataScaled = np.transpose(predictorInputData_scaler.fit_transform(npArrayPredictorInputData))
+    targetScaled = target_scalerMLP.fit_transform(npArrayTarget)
+    customPlot.plotHist(predictorInputDataScaled.tolist(),binCount,predictorLabels,'Predictor Variables Scaled')
+    customPlot.plotHist([targetScaled.tolist()],binCount,[targetLabel],'Target Scaled - MLP')
 
 #hiddenNeurons = [5,10,15,20,25,30,40,50,60]
-hiddenNeurons = [22]
-
-for x in hiddenNeurons:
-    cgnet = algorithms.ConjugateGradient(
-        connection=[
-            layers.Tanh(len(predictorInputData)),
+trainNetwork = 0
+hiddenNeurons = [27]
+Feedforward_MLP_NetworkName = 'Feedforward_MLP_'+ targetChoice                       
+ 
+if(trainNetwork):
+    print('Feedforward MLP Classification Results - Test Hidden Neurons')                                                                     
+    for x in hiddenNeurons:
+        cgnet = algorithms.ConjugateGradient(
+            connection=[
+            layers.Tanh(npArrayPredictorInputData.shape[1]),
             layers.Tanh(x),
-            layers.Output(1),
-        ],
-        search_method='golden',
-        update_function='fletcher_reeves',
-        addons=[algorithms.LinearSearch],
-        verbose=False
-    )
-    cgnet.train(x_train, y_train, x_test, y_test, epochs=10)
-
-    cgnet.plot_errors()
+            layers.Output(npArrayTarget.shape[1]),
+            ],
+            search_method='golden',
+            update_function='fletcher_reeves',
+            addons=[algorithms.LinearSearch],
+            error='rmse',
+            verbose=True,
+            show_epoch=50
+        )
+           
+        cgnet.train(x_trainMLP, y_trainMLP, x_testMLP, y_testMLP, epochs=250)
+        getData.save_network(cgnet,Feedforward_MLP_NetworkName)
     
-    y_predict = cgnet.predict(x_test)
-    #real = target_scaler.inverse_transform(y_test)
-    #predicted = target_scaler.inverse_transform(y_predict)
+        cgnet.plot_errors()
      
-    #error = estimators.rmsle(real, predicted)
-    #print error
-    error = estimators.rmsle(y_test, y_predict)
+        y_predict = cgnet.predict(x_testMLP)
+        targetDirection = np.transpose(target_scalerMLP.inverse_transform(y_testMLP))
+        estTargetDirection = target_scalerMLP.inverse_transform(y_predict)     
+        estTargetDirection = np.array([math.copysign(1,estTargetDirection[i]) for i in range(len(estTargetDirection))])
+                                                                             
+        print("Hidden Neurons {}: Guessed {} out of {} = {}% correct".format(
+            x, np.sum(targetDirection == estTargetDirection), y_testMLP.size, 100*np.sum(targetDirection == estTargetDirection)/y_testMLP.size
+        ))
+else:
+    cgnet = getData.load_network(Feedforward_MLP_NetworkName)
+    cgnet.plot_errors()
+     
+    y_predict = cgnet.predict(x_testMLP)
+    targetDirection = np.transpose(target_scalerMLP.inverse_transform(y_testMLP))
+    estTargetDirection = target_scalerMLP.inverse_transform(y_predict)     
+    estTargetDirection = np.array([math.copysign(1,estTargetDirection[i]) for i in range(len(estTargetDirection))])
     
-    print 'Hidden neurons:\t', x, '\tError:\t', round(error,3)
+    print('Feedforward MLP Classification Results')                                                                     
+    print(Feedforward_MLP_NetworkName+": Guessed {} out of {} = {}% correct".format(
+        np.sum(targetDirection == estTargetDirection), y_testMLP.size, 100*np.sum(targetDirection == estTargetDirection)/y_testMLP.size
+    ))
 
-
-#pnnStd = np.linspace(0.5, 3, 51)
+#pnnStd = np.linspace(0.01, 3, 200)
 pnnStd = [1.25]
+PNN_NetworkName = 'PNN_Network'                      
 
+print('PNN Classification Results - Test Std dev input')  
 for x in pnnStd:
     nw = algorithms.PNN(std=x, verbose=False)
-    nw.train(x_train, y_train)
-    #nw.plot_errors()
+    nw.train(x_trainPNN, y_trainPNN)
+   
+    getData.save_network(nw,PNN_NetworkName)
 
-    y_predict = nw.predict(x_test)
-    #real = target_scaler.inverse_transform(y_test)
-    #predicted = target_scaler.inverse_transform(y_predict)
-     
-    #error = estimators.rmsle(real, predicted)
-    #print error
-    error = estimators.rmsle(y_test, y_predict)
-    print 'Std dev:\t', x, '\tError:\t', round(error,3)
+    y_predict = nw.predict(x_testPNN)
+    targetDirection = np.transpose(target_scalerPNN.inverse_transform(y_testPNN))
+    estTargetDirection = target_scalerPNN.inverse_transform(y_predict)
+    
+    print("Std dev {}: Guessed {} out of {} = {}% correct".format(
+        x, np.sum(targetDirection == estTargetDirection), y_testPNN.size, 100*np.sum(targetDirection == estTargetDirection)/y_testPNN.size
+    ))
