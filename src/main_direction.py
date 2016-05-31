@@ -20,7 +20,7 @@ showPlots = 0
 
 # 1 means re-read xlsx spreadhseet and then save data objects based on spreadsheet details below
 # otherwise use previously saved data objects (.pickle files) as inputs 
-loadXlData = 0;
+loadXlData = 0
 
 if(loadXlData):
     fileName = "ASX_ForecastNN_Data.xlsx"
@@ -250,19 +250,19 @@ if(trainNetwork):
     for x in hiddenNeurons:
         cgnet = algorithms.ConjugateGradient(
             connection=[
-            layers.Tanh(npArrayPredictorInputData.shape[1]),
+            layers.Tanh(int(npArrayPredictorInputData.shape[1])),
             layers.Tanh(x),
-            layers.Output(npArrayTarget.shape[1]),
+            layers.Output(int(npArrayTarget.shape[1])),
             ],
             search_method='golden',
             update_function='fletcher_reeves',
             addons=[algorithms.LinearSearch],
             error='rmse',
             verbose=True,
-            show_epoch=50
+            show_epoch=1
         )
            
-        cgnet.train(x_trainMLP, y_trainMLP, x_testMLP, y_testMLP, epochs=250)
+        cgnet.train(x_trainMLP, y_trainMLP, x_testMLP, y_testMLP, epochs=5)
         getData.save_network(cgnet,Feedforward_MLP_NetworkName)
     
         cgnet.plot_errors()
@@ -275,6 +275,7 @@ if(trainNetwork):
         print("Hidden Neurons {}: Guessed {} out of {} = {}% correct".format(
             x, np.sum(targetDirection == estTargetDirection), y_testMLP.size, 100*np.sum(targetDirection == estTargetDirection)/y_testMLP.size
         ))
+
 else:
     cgnet = getData.load_network(Feedforward_MLP_NetworkName)
     cgnet.plot_errors()
@@ -288,6 +289,30 @@ else:
     print(Feedforward_MLP_NetworkName+": Guessed {} out of {} = {}% correct".format(
         np.sum(targetDirection == estTargetDirection), y_testMLP.size, 100*np.sum(targetDirection == estTargetDirection)/y_testMLP.size
     ))
+
+# P&L chart
+npArrayEstTarget = target_scalerMLP.inverse_transform(cgnet.predict(predictorInputData_scaler.fit_transform(npArrayPredictorInputData)))
+npArrayEstTarget = [1 if x>0 else -1 for x in npArrayEstTarget]
+count = len(npArrayTargetPrices)
+startPrice = npArrayTargetPrices[0]
+buyHold = [startPrice]
+strategy = [startPrice]
+strategy2 = [startPrice]
+for i in xrange(1, count):
+    buyHold.append(npArrayTargetPrices[i])
+    strategy.append(strategy[i-1] * ((npArrayTargetPrices[i]/npArrayTargetOpenPrices[i] - 1) * npArrayEstTarget[i] + 1))
+    strategy2.append(strategy2[i-1] + ((npArrayTargetPrices[i] - npArrayTargetOpenPrices[i]) * npArrayEstTarget[i]))
+
+plt.figure
+p1, = plt.plot(targetPricesDates, buyHold,'b')
+p2, = plt.plot(targetPricesDates, strategy,'r')
+p3, = plt.plot(targetPricesDates, strategy2,'g')
+plt.xlabel('Time')
+plt.ylabel(targetLastPriceLabel)
+plt.grid(True)  
+plt.legend([p1, p2, p3], ['Buy/Hold', 'Predictor', 'Predictor2'])   
+plt.title('P&L Chart - MLP')
+plt.show()
 
 #pnnStd = np.linspace(0.01, 3, 200)
 pnnStd = [1.25]
