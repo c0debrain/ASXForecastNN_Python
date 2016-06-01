@@ -259,15 +259,10 @@ if(trainNetwork):
             addons=[algorithms.LinearSearch],
             error='rmse',
             verbose=True,
-            show_epoch=1
+            show_epoch=50
         )
            
-<<<<<<< HEAD
-        cgnet.train(x_trainMLP, y_trainMLP, x_testMLP, y_testMLP, epochs=5)
-        getData.save_network(cgnet,Feedforward_MLP_NetworkName)
-=======
         cgnet.train(x_trainMLP, y_trainMLP, x_testMLP, y_testMLP, epochs=250)
->>>>>>> origin/master
     
         cgnet.plot_errors()
      
@@ -279,11 +274,8 @@ if(trainNetwork):
         print("Hidden Neurons {}: Guessed {} out of {} = {}% correct".format(
             x, np.sum(targetDirection == estTargetDirection), y_testMLP.size, 100*np.sum(targetDirection == estTargetDirection)/y_testMLP.size
         ))
-<<<<<<< HEAD
-=======
         
     getData.save_network(cgnet,Feedforward_MLP_NetworkName)
->>>>>>> origin/master
 
 else:
     cgnet = getData.load_network(Feedforward_MLP_NetworkName)
