@@ -57,9 +57,9 @@ def transformPrices(firstPrice,returns,returnsDates,option):
     if(firstPriceDate.isoweekday() > 5):
         firstPriceDate = firstPriceDate + datetime.timedelta(days=-2) 
     
-    returnsDates.insert(0, firstPriceDate)   
-    pricesDates  = returnsDates
-    
+    pricesDates  = returnsDates[:]#create copy
+    pricesDates.insert(0, firstPriceDate)   
+
     return prices, pricesDates
 
 def transformIntraDayPrices(openPrices,returns,returnsDates,option):
@@ -107,3 +107,46 @@ def getIntraDayReturns(openPrices,closePrices,dates,option):
                 returns.append(0.0)
                 
     return returns,[dates[i] for i in range(1,len(openPrices))]
+
+def applyNetworkOriginalScale(inputOriginalScale,predictorInputData_scaler,target_scaler,network):    
+    estTarget = target_scaler.inverse_transform(network.predict(predictorInputData_scaler.fit_transform(inputOriginalScale)))
+    return estTarget
+
+def getIntraDayPNL(estReturns,openPrices,lastPrices,dailyInterestRate,option):
+         
+    strategyPNL = []
+    buyHoldPNL = []
+    for idx in range(len(estReturns)):
+        
+        buyHoldPNL.append(lastPrices[idx]-openPrices[idx])
+        
+        if(estReturns[idx] > 0):
+            #buy at open and sell at close 
+            strategyPNL.append(lastPrices[idx]-openPrices[idx])
+        else:
+            if(option == 'LONG_SHORT'):
+                #short at open and buy at close
+                strategyPNL.append(openPrices[idx]-lastPrices[idx])
+        
+        if(idx > 0):
+            #cumulative sum
+            strategyPNL[idx] = strategyPNL[idx] + strategyPNL[idx-1]
+            buyHoldPNL[idx] = buyHoldPNL[idx] + buyHoldPNL[idx-1]
+    
+    return strategyPNL,buyHoldPNL
+
+def getIntraDayPNL2(estReturns,openPrices,lastPrices,dailyInterestRate,option):
+    startPrice = lastPrices[0]     
+    strategyPNL = [startPrice]
+    buyHoldPNL = [startPrice]
+    
+    for idx in xrange(1, len(estReturns)):
+        
+        buyHoldPNL.append(lastPrices[idx])
+        buySell = math.copysign(1,estReturns[idx])
+        strategyPNL.append((lastPrices[idx]-openPrices[idx])*buySell + strategyPNL[idx-1])
+    
+    return strategyPNL,buyHoldPNL     
+    
+    
+    
