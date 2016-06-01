@@ -263,7 +263,6 @@ if(trainNetwork):
         )
            
         cgnet.train(x_trainMLP, y_trainMLP, x_testMLP, y_testMLP, epochs=250)
-        getData.save_network(cgnet,Feedforward_MLP_NetworkName)
     
         cgnet.plot_errors()
      
@@ -275,19 +274,23 @@ if(trainNetwork):
         print("Hidden Neurons {}: Guessed {} out of {} = {}% correct".format(
             x, np.sum(targetDirection == estTargetDirection), y_testMLP.size, 100*np.sum(targetDirection == estTargetDirection)/y_testMLP.size
         ))
+        
+    getData.save_network(cgnet,Feedforward_MLP_NetworkName)
+
 else:
     cgnet = getData.load_network(Feedforward_MLP_NetworkName)
-    cgnet.plot_errors()
-     
-    y_predict = cgnet.predict(x_testMLP)
-    targetDirection = np.transpose(target_scalerMLP.inverse_transform(y_testMLP))
-    estTargetDirection = target_scalerMLP.inverse_transform(y_predict)     
-    estTargetDirection = np.array([math.copysign(1,estTargetDirection[i]) for i in range(len(estTargetDirection))])
     
-    print('Feedforward MLP Classification Results')                                                                     
-    print(Feedforward_MLP_NetworkName+": Guessed {} out of {} = {}% correct".format(
-        np.sum(targetDirection == estTargetDirection), y_testMLP.size, 100*np.sum(targetDirection == estTargetDirection)/y_testMLP.size
-    ))
+cgnet.plot_errors()
+ 
+y_predict = cgnet.predict(x_testMLP)
+targetDirection = np.transpose(target_scalerMLP.inverse_transform(y_testMLP))
+estTargetDirection = target_scalerMLP.inverse_transform(y_predict)     
+estTargetDirection = np.array([math.copysign(1,estTargetDirection[i]) for i in range(len(estTargetDirection))])
+
+print('Feedforward MLP Classification Results')                                                                     
+print(Feedforward_MLP_NetworkName+": Guessed {} out of {} = {}% correct".format(
+    np.sum(targetDirection == estTargetDirection), y_testMLP.size, 100*np.sum(targetDirection == estTargetDirection)/y_testMLP.size
+))
 
 #pnnStd = np.linspace(0.01, 3, 200)
 pnnStd = [1.25]
@@ -295,11 +298,9 @@ PNN_NetworkName = 'PNN_Network'
 
 print('PNN Classification Results - Test Std dev input')  
 for x in pnnStd:
-    nw = algorithms.PNN(std=x, verbose=False)
+    nw = algorithms.PNN(std=x, verbose=True)
     nw.train(x_trainPNN, y_trainPNN)
    
-    getData.save_network(nw,PNN_NetworkName)
-
     y_predict = nw.predict(x_testPNN)
     targetDirection = np.transpose(target_scalerPNN.inverse_transform(y_testPNN))
     estTargetDirection = target_scalerPNN.inverse_transform(y_predict)
@@ -307,3 +308,6 @@ for x in pnnStd:
     print("Std dev {}: Guessed {} out of {} = {}% correct".format(
         x, np.sum(targetDirection == estTargetDirection), y_testPNN.size, 100*np.sum(targetDirection == estTargetDirection)/y_testPNN.size
     ))
+
+nw.plot_errors()          
+getData.save_network(nw,PNN_NetworkName)
