@@ -263,14 +263,14 @@ else:
 cgnet.plot_errors()
 npArrayEstTarget = util.applyNetworkOriginalScale(npArrayPredictorInputData,predictorInputData_scaler,target_scaler,cgnet)
  #plot estimated target performance
-customPlot.plotPerformance(targetDates,npArrayTarget,npArrayEstTarget,targetLabel,'Returns Performance - MLP')       
+customPlot.plotPerformance(targetDates,npArrayTarget,npArrayEstTarget,'True','Est',targetLabel,'Returns Performance - MLP')       
  
 #tranform target to prices  
 if(isIntraDayClassification):
     estPrices,temp = util.transformIntraDayPrices(npArrayTargetOpenPrices,
-                                         npArrayEstTarget,
-                                         targetDates,
-                                         returnsCalcOption)
+                                                 npArrayEstTarget,
+                                                 targetDates,
+                                                 returnsCalcOption)
 else:
     estPrices,temp = util.transformPrices(npArrayTargetPrices[0],
                                           npArrayEstTarget,
@@ -279,7 +279,7 @@ else:
      
 npArrayEstTargetPrices = np.array(estPrices)
 #plot estimated target prices performance
-customPlot.plotPerformance(targetPricesDates,npArrayTargetPrices,npArrayEstTargetPrices,targetLastPriceLabel,'Price Performance - MLP')                   
+customPlot.plotPerformance(targetPricesDates,npArrayTargetPrices,npArrayEstTargetPrices,'True','Est',targetLastPriceLabel,'Price Performance - MLP')                   
  
 targetErrs = npArrayTarget - npArrayEstTarget
 customPlot.plotHist([targetErrs.tolist()],binCount,[targetLabel +'_ERROR'],'Target Returns Error - MLP')
@@ -305,7 +305,7 @@ print 'Mean err = ',np.mean(targetPricesErrs)
 print 'RMSE = ', np.sqrt(np.mean(targetPricesErrs**2))
 
 strategyPNL,buyHoldPNL = util.getIntraDayPNL2(npArrayEstTarget,npArrayTargetOpenPrices,npArrayTargetPrices,None,'LONG_SHORT')
-customPlot.plotPerformance(targetPricesDates,buyHoldPNL,strategyPNL,'PNL Chart','Long Short Strategy - MLP')                                
+customPlot.plotPerformance(targetPricesDates,buyHoldPNL,strategyPNL,'BuyHold','Strategy','PNL Chart','Long Short Strategy - MLP')                                
 
 #grnnStd = np.linspace(0.05, 2, 200)    
 grnnStd = [1.8]
@@ -331,14 +331,14 @@ else:
 nw.plot_errors()      
 npArrayEstTarget = util.applyNetworkOriginalScale(npArrayPredictorInputData,predictorInputData_scaler,target_scaler,nw)
 #plot estimated target performance
-customPlot.plotPerformance(targetDates,npArrayTarget,npArrayEstTarget,targetLabel,'Returns Performance - GRNN')                  
+customPlot.plotPerformance(targetDates,npArrayTarget,npArrayEstTarget,'True','Est',targetLabel,'Returns Performance - GRNN')                  
 
 #tranform target to prices  
 if(isIntraDayClassification):
     estPrices,temp = util.transformIntraDayPrices(npArrayTargetOpenPrices,
-                                         npArrayEstTarget,
-                                         targetDates,
-                                         returnsCalcOption)
+                                                 npArrayEstTarget,
+                                                 targetDates,
+                                                 returnsCalcOption)
 else:
     estPrices,temp = util.transformPrices(npArrayTargetPrices[0],
                                           npArrayEstTarget,
@@ -347,7 +347,7 @@ else:
     
 npArrayEstTargetPrices = np.array(estPrices)
 #plot estimated target prices performance
-customPlot.plotPerformance(targetPricesDates,npArrayTargetPrices,npArrayEstTargetPrices,targetLastPriceLabel,'Price Performance - GRNN')                                
+customPlot.plotPerformance(targetPricesDates,npArrayTargetPrices,npArrayEstTargetPrices,'True','Est',targetLastPriceLabel,'Price Performance - GRNN')                                
 
 targetErrs = npArrayTarget - npArrayEstTarget
 customPlot.plotHist([targetErrs.tolist()],binCount,[targetLabel +'_ERROR'],'Target Returns Error - GRNN')
@@ -373,4 +373,4 @@ print 'Mean err = ',np.mean(targetPricesErrs)
 print 'RMSE = ', np.sqrt(np.mean(targetPricesErrs**2))
 
 strategyPNL,buyHoldPNL = util.getIntraDayPNL2(npArrayEstTarget,npArrayTargetOpenPrices,npArrayTargetPrices,None,'LONG_SHORT')
-customPlot.plotPerformance(targetPricesDates,buyHoldPNL,strategyPNL,'PNL Chart','Long Short Strategy - GRNN')                                
+customPlot.plotPerformance(targetPricesDates,buyHoldPNL,strategyPNL,'BuyHold','Strategy','PNL Chart','Long Short Strategy - GRNN')                                

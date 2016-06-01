@@ -103,14 +103,14 @@ def subPlotData(x_data,y_data,plotLabels,title):
                 plt.title(title+' - Figure ' + str(dataIdx+1))
     plt.show()
     
-def plotPerformance(x_data,true_data,est_data,plotLabel,title): 
+def plotPerformance(x_data,y1_data,y2_data,legend1,legend2,plotLabel,title): 
     plt.figure
-    p1, = plt.plot(x_data, true_data,'b')
-    p2, = plt.plot(x_data, est_data,'r')
+    p1, = plt.plot(x_data, y1_data,'b')
+    p2, = plt.plot(x_data, y2_data,'r')
     plt.xlabel('Time')
     plt.ylabel(plotLabel)
     plt.grid(True)       
-    plt.legend([p1, p2], ['True','Est'])
+    plt.legend([p1, p2], [legend1,legend2])
     plt.title(title)
     plt.show()  
     
