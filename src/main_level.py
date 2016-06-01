@@ -65,7 +65,7 @@ returnsCalcOption = 'LOG_DIFF' #rel_diff
 
 #choose data between these dates 
 #startDate = datetime.datetime(2000, 4, 6)
-startDate = datetime.datetime(2007, 1, 1)
+startDate = datetime.datetime(2007, 1, 3)
 endDate = datetime.datetime(2016, 5, 9)
 
 assert(startDate.isoweekday() in range(1, 6)),"startDate is not a weekday - choose another startDate"
@@ -207,7 +207,7 @@ npArrayPredictorInputData = np.transpose(np.array(predictorInputData))
 
 binCount = 50
 if(showPlots):
-    customPlot.plotHist(dataContainer.returnsData,binCount,dataContainer.returnsLabels,'Returns Data Histogram')
+   # customPlot.plotHist(dataContainer.returnsData,binCount,dataContainer.returnsLabels,'Returns Data Histogram')    
     customPlot.plotHist(predictorInputData,binCount,predictorLabels,'Predictor Variable Histogram')
     customPlot.plotHist([target],binCount,[targetLabel],'Target Histogram')
 
@@ -233,144 +233,148 @@ if(checkInputScaling):
     customPlot.plotHist(predictorInputDataScaled.tolist(),binCount,predictorLabels,'Predictor Variables Scaled')
     customPlot.plotHist([targetScaled.tolist()],binCount,[targetLabel],'Target Scaled')
 
-numHiddenNeurons = 22
-Feedforward_MLP_NetworkName = 'Feedforward_MLP_'+ targetChoice    
-trainNetwork = 0                   
-  
-if(trainNetwork):   
-    print('Feedforward MLP Level Results')                                                                                     
-    cgnet = algorithms.ConjugateGradient(
-          connection=[
-             layers.Tanh(npArrayPredictorInputData.shape[1]),
-             layers.Tanh(numHiddenNeurons),
-             layers.Output(npArrayTarget.shape[1]),
-          ],
-          search_method='golden',
-          update_function='fletcher_reeves',
-          addons=[algorithms.LinearSearch],
-          error='rmse',
-          verbose=True,
-          show_epoch=50,
-          )
-          
-    cgnet.train(x_train, y_train, x_test,y_test,epochs=350)
-    #not working, cant have numbers in name
-    #networkName = 'ConjGrad_tanh<'+str(npArrayPredictorInputData.shape[1])+'>_tanh<'+str(numHiddenNeurons)+'>_output<'+str(npArrayTarget.shape[1])+'>'
-    getData.save_network(cgnet,Feedforward_MLP_NetworkName)   
-else:
-    cgnet = getData.load_network(Feedforward_MLP_NetworkName)
-     
-cgnet.plot_errors()
-npArrayEstTarget = util.applyNetworkOriginalScale(npArrayPredictorInputData,predictorInputData_scaler,target_scaler,cgnet)
- #plot estimated target performance
-customPlot.plotPerformance(targetDates,npArrayTarget,npArrayEstTarget,'True','Est',targetLabel,'Returns Performance - MLP')       
- 
-#tranform target to prices  
-if(isIntraDayClassification):
-    estPrices,temp = util.transformIntraDayPrices(npArrayTargetOpenPrices,
-                                                 npArrayEstTarget,
-                                                 targetDates,
-                                                 returnsCalcOption)
-else:
-    estPrices,temp = util.transformPrices(npArrayTargetPrices[0],
-                                          npArrayEstTarget,
-                                          targetDates,
-                                          returnsCalcOption)
-     
-npArrayEstTargetPrices = np.array(estPrices)
-#plot estimated target prices performance
-customPlot.plotPerformance(targetPricesDates,npArrayTargetPrices,npArrayEstTargetPrices,'True','Est',targetLastPriceLabel,'Price Performance - MLP')                   
- 
-targetErrs = npArrayTarget - npArrayEstTarget
-customPlot.plotHist([targetErrs.tolist()],binCount,[targetLabel +'_ERROR'],'Target Returns Error - MLP')
- 
-print 'Feedforward NN Results - Intra Day Returns Performance'
-print 'Mean err = ',np.mean(targetErrs)
-print 'RMSE = ', np.sqrt(np.mean(targetErrs**2))
- 
-#use level estimated returns vectors to infer target direction 
-targetDirection = np.array([math.copysign(1,npArrayTarget[i]) for i in range(len(npArrayTarget))])
-estTargetDirection = np.array([math.copysign(1,npArrayEstTarget[i]) for i in range(len(npArrayEstTarget))])
- 
-print('Feedforward MLP Level Est - Classification Results')                                                                     
-print(Feedforward_MLP_NetworkName+": Guessed {} out of {} = {}% correct".format(
-    np.sum(targetDirection == estTargetDirection), npArrayTarget.size, 100*np.sum(targetDirection == estTargetDirection)/npArrayTarget.size
-))
- 
-targetPricesErrs = npArrayTargetPrices - npArrayEstTargetPrices
-customPlot.plotHist([targetPricesErrs.tolist()],binCount,[targetLastPriceLabel+'_ERROR'],'Target Prices Error - MLP')
- 
-print 'Feedforward NN Results - Intra Day Price Performance'
-print 'Mean err = ',np.mean(targetPricesErrs)
-print 'RMSE = ', np.sqrt(np.mean(targetPricesErrs**2))
-
-strategyPNL,buyHoldPNL = util.getIntraDayPNL2(npArrayEstTarget,npArrayTargetOpenPrices,npArrayTargetPrices,None,'LONG_SHORT')
-customPlot.plotPerformance(targetPricesDates,buyHoldPNL,strategyPNL,'BuyHold','Strategy','PNL Chart','Long Short Strategy - MLP')                                
-
-#grnnStd = np.linspace(0.05, 2, 200)    
-grnnStd = [1.8]
-GRNN_NetworkName = 'GRNN_Network'                      
-trainNetwork = 1
-if(trainNetwork):  
-    print('GRNN Classification Results - Test Std dev input')  
-    for x in grnnStd:
-        nw = algorithms.GRNN(std=x, verbose=True)
-        nw.train(x_train, y_train)
-    
-        y_testEst = target_scaler.inverse_transform(nw.predict(x_test))
-        y_testTrue = target_scaler.inverse_transform(y_test)
-        
-        print("Std dev {}: RMSE = {}".format(
-            x, np.sqrt(np.mean((y_testEst-y_testTrue)**2)))
-        )  
-    
-    getData.save_network(nw,GRNN_NetworkName)
-else:
-    nw = getData.load_network(GRNN_NetworkName)  
+runMLP = 1
+if(runMLP):
+    numHiddenNeurons = 22
+    Feedforward_MLP_NetworkName = 'Feedforward_MLP_'+ targetChoice    
+    trainNetwork = 0                   
       
-nw.plot_errors()      
-npArrayEstTarget = util.applyNetworkOriginalScale(npArrayPredictorInputData,predictorInputData_scaler,target_scaler,nw)
-#plot estimated target performance
-customPlot.plotPerformance(targetDates,npArrayTarget,npArrayEstTarget,'True','Est',targetLabel,'Returns Performance - GRNN')                  
-
-#tranform target to prices  
-if(isIntraDayClassification):
-    estPrices,temp = util.transformIntraDayPrices(npArrayTargetOpenPrices,
-                                                 npArrayEstTarget,
-                                                 targetDates,
-                                                 returnsCalcOption)
-else:
-    estPrices,temp = util.transformPrices(npArrayTargetPrices[0],
-                                          npArrayEstTarget,
-                                          targetDates,
-                                          returnsCalcOption)
+    if(trainNetwork):   
+        print('Feedforward MLP Level Results')                                                                                     
+        cgnet = algorithms.ConjugateGradient(
+              connection=[
+                 layers.Tanh(npArrayPredictorInputData.shape[1]),
+                 layers.Tanh(numHiddenNeurons),
+                 layers.Output(npArrayTarget.shape[1]),
+              ],
+              search_method='golden',
+              update_function='fletcher_reeves',
+              addons=[algorithms.LinearSearch],
+              error='rmse',
+              verbose=True,
+              show_epoch=50,
+              )
+              
+        cgnet.train(x_train, y_train, x_test,y_test,epochs=350)
+        #not working, cant have numbers in name
+        #networkName = 'ConjGrad_tanh<'+str(npArrayPredictorInputData.shape[1])+'>_tanh<'+str(numHiddenNeurons)+'>_output<'+str(npArrayTarget.shape[1])+'>'
+        getData.save_network(cgnet,Feedforward_MLP_NetworkName)   
+    else:
+        cgnet = getData.load_network(Feedforward_MLP_NetworkName)
+         
+    cgnet.plot_errors()
+    npArrayEstTarget = util.applyNetworkOriginalScale(npArrayPredictorInputData,predictorInputData_scaler,target_scaler,cgnet)
+     #plot estimated target performance
+    customPlot.plotPerformance(targetDates,npArrayTarget,npArrayEstTarget,'True','Est',targetLabel,'Returns Performance - MLP')       
+     
+    #tranform target to prices  
+    if(isIntraDayClassification):
+        estPrices,temp = util.transformIntraDayPrices(npArrayTargetOpenPrices,
+                                                     npArrayEstTarget,
+                                                     targetDates,
+                                                     returnsCalcOption)
+    else:
+        estPrices,temp = util.transformPrices(npArrayTargetPrices[0],
+                                              npArrayEstTarget,
+                                              targetDates,
+                                              returnsCalcOption)
+         
+    npArrayEstTargetPrices = np.array(estPrices)
+    #plot estimated target prices performance
+    customPlot.plotPerformance(targetPricesDates,npArrayTargetPrices,npArrayEstTargetPrices,'True','Est',targetLastPriceLabel,'Price Performance - MLP')                   
+     
+    targetErrs = npArrayTarget - npArrayEstTarget
+    customPlot.plotHist([targetErrs.tolist()],binCount,[targetLabel +'_ERROR'],'Target Returns Error - MLP')
+     
+    print 'Feedforward NN Results - Intra Day Returns Performance'
+    print 'Mean err = ',np.mean(targetErrs)
+    print 'RMSE = ', np.sqrt(np.mean(targetErrs**2))
+     
+    #use level estimated returns vectors to infer target direction 
+    targetDirection = np.array([math.copysign(1,npArrayTarget[i]) for i in range(len(npArrayTarget))])
+    estTargetDirection = np.array([math.copysign(1,npArrayEstTarget[i]) for i in range(len(npArrayEstTarget))])
+     
+    print('Feedforward MLP Level Est - Classification Results')                                                                     
+    print(Feedforward_MLP_NetworkName+": Guessed {} out of {} = {}% correct".format(
+        np.sum(targetDirection == estTargetDirection), npArrayTarget.size, 100*np.sum(targetDirection == estTargetDirection)/npArrayTarget.size
+    ))
+     
+    targetPricesErrs = npArrayTargetPrices - npArrayEstTargetPrices
+    customPlot.plotHist([targetPricesErrs.tolist()],binCount,[targetLastPriceLabel+'_ERROR'],'Target Prices Error - MLP')
+     
+    print 'Feedforward NN Results - Intra Day Price Performance'
+    print 'Mean err = ',np.mean(targetPricesErrs)
+    print 'RMSE = ', np.sqrt(np.mean(targetPricesErrs**2))
     
-npArrayEstTargetPrices = np.array(estPrices)
-#plot estimated target prices performance
-customPlot.plotPerformance(targetPricesDates,npArrayTargetPrices,npArrayEstTargetPrices,'True','Est',targetLastPriceLabel,'Price Performance - GRNN')                                
+    strategyPNL,buyHoldPNL = util.getIntraDayPNL2(npArrayEstTarget,npArrayTargetOpenPrices,npArrayTargetPrices,None,'LONG_SHORT')
+    customPlot.plotPerformance(targetPricesDates,buyHoldPNL,strategyPNL,'BuyHold','Strategy','PNL Chart','Long Short Strategy - MLP')                                
 
-targetErrs = npArrayTarget - npArrayEstTarget
-customPlot.plotHist([targetErrs.tolist()],binCount,[targetLabel +'_ERROR'],'Target Returns Error - GRNN')
-
-print 'GRNN Results - Intra Day Returns Performance'
-print 'Mean err = ',np.mean(targetErrs)
-print 'RMSE = ', np.sqrt(np.mean(targetErrs**2))
-
-#use level estimated returns vectors to infer target direction 
-targetDirection = np.array([math.copysign(1,npArrayTarget[i]) for i in range(len(npArrayTarget))])
-estTargetDirection = np.array([math.copysign(1,npArrayEstTarget[i]) for i in range(len(npArrayEstTarget))])
-
-print('GRNN Level Est - Classification Results')                                                                     
-print(GRNN_NetworkName+": Guessed {} out of {} = {}% correct".format(
-    np.sum(targetDirection == estTargetDirection), npArrayTarget.size, 100*np.sum(targetDirection == estTargetDirection)/npArrayTarget.size
-))
-
-targetPricesErrs = npArrayTargetPrices - npArrayEstTargetPrices
-customPlot.plotHist([targetPricesErrs.tolist()],binCount,[targetLastPriceLabel+'_ERROR'],'Target Prices Error - GRNN')
-
-print 'GRNN Results - Intra Day Price Performance'
-print 'Mean err = ',np.mean(targetPricesErrs)
-print 'RMSE = ', np.sqrt(np.mean(targetPricesErrs**2))
-
-strategyPNL,buyHoldPNL = util.getIntraDayPNL2(npArrayEstTarget,npArrayTargetOpenPrices,npArrayTargetPrices,None,'LONG_SHORT')
-customPlot.plotPerformance(targetPricesDates,buyHoldPNL,strategyPNL,'BuyHold','Strategy','PNL Chart','Long Short Strategy - GRNN')                                
+runGRNN = 0
+if(runGRNN):
+    #grnnStd = np.linspace(0.05, 2, 200)    
+    grnnStd = [1.8]
+    GRNN_NetworkName = 'GRNN_Network'                      
+    trainNetwork = 1
+    if(trainNetwork):  
+        print('GRNN Classification Results - Test Std dev input')  
+        for x in grnnStd:
+            nw = algorithms.GRNN(std=x, verbose=True)
+            nw.train(x_train, y_train)
+        
+            y_testEst = target_scaler.inverse_transform(nw.predict(x_test))
+            y_testTrue = target_scaler.inverse_transform(y_test)
+            
+            print("Std dev {}: RMSE = {}".format(
+                x, np.sqrt(np.mean((y_testEst-y_testTrue)**2)))
+            )  
+        
+        getData.save_network(nw,GRNN_NetworkName)
+    else:
+        nw = getData.load_network(GRNN_NetworkName)  
+          
+    nw.plot_errors()      
+    npArrayEstTarget = util.applyNetworkOriginalScale(npArrayPredictorInputData,predictorInputData_scaler,target_scaler,nw)
+    #plot estimated target performance
+    customPlot.plotPerformance(targetDates,npArrayTarget,npArrayEstTarget,'True','Est',targetLabel,'Returns Performance - GRNN')                  
+    
+    #tranform target to prices  
+    if(isIntraDayClassification):
+        estPrices,temp = util.transformIntraDayPrices(npArrayTargetOpenPrices,
+                                                     npArrayEstTarget,
+                                                     targetDates,
+                                                     returnsCalcOption)
+    else:
+        estPrices,temp = util.transformPrices(npArrayTargetPrices[0],
+                                              npArrayEstTarget,
+                                              targetDates,
+                                              returnsCalcOption)
+        
+    npArrayEstTargetPrices = np.array(estPrices)
+    #plot estimated target prices performance
+    customPlot.plotPerformance(targetPricesDates,npArrayTargetPrices,npArrayEstTargetPrices,'True','Est',targetLastPriceLabel,'Price Performance - GRNN')                                
+    
+    targetErrs = npArrayTarget - npArrayEstTarget
+    customPlot.plotHist([targetErrs.tolist()],binCount,[targetLabel +'_ERROR'],'Target Returns Error - GRNN')
+    
+    print 'GRNN Results - Intra Day Returns Performance'
+    print 'Mean err = ',np.mean(targetErrs)
+    print 'RMSE = ', np.sqrt(np.mean(targetErrs**2))
+    
+    #use level estimated returns vectors to infer target direction 
+    targetDirection = np.array([math.copysign(1,npArrayTarget[i]) for i in range(len(npArrayTarget))])
+    estTargetDirection = np.array([math.copysign(1,npArrayEstTarget[i]) for i in range(len(npArrayEstTarget))])
+    
+    print('GRNN Level Est - Classification Results')                                                                     
+    print(GRNN_NetworkName+": Guessed {} out of {} = {}% correct".format(
+        np.sum(targetDirection == estTargetDirection), npArrayTarget.size, 100*np.sum(targetDirection == estTargetDirection)/npArrayTarget.size
+    ))
+    
+    targetPricesErrs = npArrayTargetPrices - npArrayEstTargetPrices
+    customPlot.plotHist([targetPricesErrs.tolist()],binCount,[targetLastPriceLabel+'_ERROR'],'Target Prices Error - GRNN')
+    
+    print 'GRNN Results - Intra Day Price Performance'
+    print 'Mean err = ',np.mean(targetPricesErrs)
+    print 'RMSE = ', np.sqrt(np.mean(targetPricesErrs**2))
+    
+    strategyPNL,buyHoldPNL = util.getIntraDayPNL2(npArrayEstTarget,npArrayTargetOpenPrices,npArrayTargetPrices,None,'LONG_SHORT')
+    customPlot.plotPerformance(targetPricesDates,buyHoldPNL,strategyPNL,'BuyHold','Strategy','PNL Chart','Long Short Strategy - GRNN')                                
