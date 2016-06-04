@@ -1,4 +1,4 @@
-
+import random
 import readSaveData as getData
 import datetime  
 import code
@@ -20,7 +20,7 @@ showPlots = 0
 
 # 1 means re-read xlsx spreadhseet and then save data objects based on spreadsheet details below
 # otherwise use previously saved data objects (.pickle files) as inputs 
-loadXlData = 0
+loadXlData = 1
 
 if(loadXlData):
     fileName = "ASX_ForecastNN_Data.xlsx"
@@ -66,8 +66,8 @@ returnsCalcOption = 'LOG_DIFF' #rel_diff
 #choose data between these dates 
 #startDate = datetime.datetime(2000, 4, 6)
 #endDate = datetime.datetime(2003, 4, 29)
-#startDate = datetime.datetime(2000, 1, 4)
-startDate = datetime.datetime(2011, 5, 9)
+startDate = datetime.datetime(2000, 1, 4)
+#startDate = datetime.datetime(2011, 5, 9)
 endDate = datetime.datetime(2016, 5, 9)
 
 assert(startDate.isoweekday() in range(1, 6)),"startDate is not a weekday - choose another startDate"
@@ -109,6 +109,8 @@ pricesInputs.append(['AUD1Y_SWAP','Indices','ADSWAP1_Curncy',lagAsianMarketClose
 pricesInputs.append(['AUD10Y_GOVT','Indices','XM1_Comdty',lagAsianMarketClose])
 pricesInputs.append(['USD10Y_GOVT','Indices','TY1_Comdty',lagAmericanMarketClose])
 pricesInputs.append(['USDJPY_CURRENCY','Indices','USDJPY_Curncy',lagAmericanMarketClose])
+pricesInputs.append(['ASX200_ACCUMULATION_OPEN','Indices','ASA51_PX_OPEN',lagAsianMarketOpen])
+pricesInputs.append(['ASX200_ACCUMULATION_LAST','Indices','ASA51_PX_LAST',lagAsianMarketOpen])
 
 useReturn = 0
 usePrice = 1
@@ -293,27 +295,31 @@ print(Feedforward_MLP_NetworkName+": Guessed {} out of {} = {}% correct".format(
 ))
 
 # P&L chart
+accumulationOpenPrices = dataContainer.pricesData[dataContainer.pricesLabels.index('ASX200_ACCUMULATION_OPEN')][1:]
+accumulationClosePrices = dataContainer.pricesData[dataContainer.pricesLabels.index('ASX200_ACCUMULATION_LAST')][1:]
 npArrayEstTarget = target_scalerMLP.inverse_transform(cgnet.predict(predictorInputData_scaler.fit_transform(npArrayPredictorInputData)))
 npArrayEstTarget = [1 if x>0 else -1 for x in npArrayEstTarget]
 count = len(npArrayTargetPrices)
 startPrice = npArrayTargetPrices[0]
 buyHold = [startPrice]
 strategy = [startPrice]
-strategy2 = [startPrice]
+accumulation = [startPrice]
+accumulationUnits = startPrice / accumulationClosePrices[0]
+random.seed()
 for i in xrange(1, count):
     buyHold.append(npArrayTargetPrices[i])
-    strategy.append(strategy[i-1] * ((npArrayTargetPrices[i]/npArrayTargetOpenPrices[i] - 1) * npArrayEstTarget[i] + 1))
-    strategy2.append(strategy2[i-1] + ((npArrayTargetPrices[i] - npArrayTargetOpenPrices[i]) * npArrayEstTarget[i]))
+    strategy.append(strategy[i-1] + ((npArrayTargetPrices[i] - npArrayTargetOpenPrices[i]) * npArrayEstTarget[i]))
+    accumulation.append(accumulationClosePrices[i] * accumulationUnits)
 
 plt.figure
 p1, = plt.plot(targetPricesDates, buyHold,'b')
 p2, = plt.plot(targetPricesDates, strategy,'r')
-p3, = plt.plot(targetPricesDates, strategy2,'g')
+p3, = plt.plot(targetPricesDates, accumulation,'g')
 plt.xlabel('Time')
 plt.ylabel(targetLastPriceLabel)
 plt.grid(True)  
-plt.legend([p1, p2, p3], ['Buy/Hold', 'Predictor', 'Predictor2'])   
-plt.title('P&L Chart - MLP')
+plt.legend([p1, p2, p3], ['Buy/Hold', 'Strategy', 'Accumulation'])   
+plt.title('P&L Chart - Direction')
 plt.show()
 
 #pnnStd = np.linspace(0.01, 3, 200)
@@ -335,3 +341,28 @@ for x in pnnStd:
 
 nw.plot_errors()          
 getData.save_network(nw,PNN_NetworkName)
+
+
+# P&L chart
+npArrayEstTarget = target_scalerPNN.inverse_transform(nw.predict(predictorInputData_scaler.fit_transform(npArrayPredictorInputData)))
+npArrayEstTarget = [1 if x>0 else -1 for x in npArrayEstTarget]
+count = len(npArrayTargetPrices)
+startPrice = npArrayTargetPrices[0]
+buyHold = [startPrice]
+strategy = [startPrice]
+strategy2 = [startPrice]
+for i in xrange(1, count):
+    buyHold.append(npArrayTargetPrices[i])
+    strategy.append(strategy[i-1] * ((npArrayTargetPrices[i]/npArrayTargetOpenPrices[i] - 1) * npArrayEstTarget[i] + 1))
+    strategy2.append(strategy2[i-1] + ((npArrayTargetPrices[i] - npArrayTargetOpenPrices[i]) * npArrayEstTarget[i]))
+
+plt.figure
+p1, = plt.plot(targetPricesDates, buyHold,'b')
+#p2, = plt.plot(targetPricesDates, strategy,'r')
+p2, = plt.plot(targetPricesDates, strategy2,'g')
+plt.xlabel('Time')
+plt.ylabel(targetLastPriceLabel)
+plt.grid(True)  
+plt.legend([p1, p2], ['Buy/Hold', 'Strategy'])   
+plt.title('P&L Chart - PNN')
+plt.show()
