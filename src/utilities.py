@@ -72,6 +72,17 @@ def transformIntraDayPrices(openPrices,returns,returnsDates,option):
                            
     return closePrices, returnsDates
 
+def transformIntraDayAdjPrices(openPrices,trueClosePrices,returns,returnsDates,option):
+    estClosePrices = [openPrices[0]*math.exp(returns[0])]
+    for idx in range(1,len(returns)):
+        adjOpen = (estClosePrices[idx-1]- trueClosePrices[idx-1] + openPrices[idx])
+        if(option == 'LOG_DIFF'):
+                estClosePrices.append(adjOpen*math.exp(returns[idx]))
+        elif(option == 'REL_DIFF'):
+                estClosePrices.append(adjOpen + returns[idx]*adjOpen)
+                           
+    return estClosePrices, returnsDates
+
 def getReturns(prices,dates,option):
     returns = []
     for idx in range(1,len(prices)):
@@ -114,24 +125,25 @@ def applyNetworkOriginalScale(inputOriginalScale,predictorInputData_scaler,targe
 
 def getIntraDayPNL(estReturns,openPrices,lastPrices,dailyInterestRate,option):
          
-    strategyPNL = []
-    buyHoldPNL = []
-    for idx in range(len(estReturns)):
+    startPrice = lastPrices[0]     
+    strategyPNL = [startPrice]
+    buyHoldPNL = [startPrice]
+    for idx in range(1,len(estReturns)):
         
-        buyHoldPNL.append(lastPrices[idx]-openPrices[idx])
+        buyHoldPNL.append(lastPrices[idx]-openPrices[idx] + buyHoldPNL[idx-1])
         
         if(estReturns[idx] > 0):
             #buy at open and sell at close 
-            strategyPNL.append(lastPrices[idx]-openPrices[idx])
+            strategyPNL.append(lastPrices[idx]-openPrices[idx] + strategyPNL[idx-1])
         else:
             if(option == 'LONG_SHORT'):
                 #short at open and buy at close
-                strategyPNL.append(openPrices[idx]-lastPrices[idx])
-        
-        if(idx > 0):
-            #cumulative sum
-            strategyPNL[idx] = strategyPNL[idx] + strategyPNL[idx-1]
-            buyHoldPNL[idx] = buyHoldPNL[idx] + buyHoldPNL[idx-1]
+                strategyPNL.append(openPrices[idx]-lastPrices[idx] + strategyPNL[idx-1])
+            elif(option == 'LONG'):
+                if(dailyInterestRate is not None):
+                    strategyPNL.append((1+dailyInterestRate)*strategyPNL[idx-1])      
+                else:
+                    strategyPNL.append(strategyPNL[idx-1])          
     
     return strategyPNL,buyHoldPNL
 

@@ -66,8 +66,7 @@ returnsCalcOption = 'LOG_DIFF' #rel_diff
 #choose data between these dates 
 #startDate = datetime.datetime(2000, 4, 6)
 #endDate = datetime.datetime(2003, 4, 29)
-#startDate = datetime.datetime(2000, 1, 4)
-startDate = datetime.datetime(2011, 5, 9)
+startDate = datetime.datetime(2000, 5, 9)
 endDate = datetime.datetime(2016, 5, 9)
 
 assert(startDate.isoweekday() in range(1, 6)),"startDate is not a weekday - choose another startDate"
@@ -129,6 +128,8 @@ targetOpenPriceLabel = 'ASX200_DAILY_PX_OPEN'
 targetLastPriceLabel = 'ASX200_DAILY_PX_LAST'
 targetLabel = 'ASX200_INTRADAY_'+returnsCalcOption+'_RETS'
 targetChoice = 'DIRECTION'
+testStrategy = 'LONG_SHORT'
+dailyInterestRate = 0.03/365
 
 pricesLabels = []
 pricesData = []
@@ -219,103 +220,102 @@ predictorInputData_scaler = preprocessing.StandardScaler()
 target_scalerMLP = preprocessing.MinMaxScaler(feature_range=(-0.5, 0.5))
 target_scalerPNN = preprocessing.MinMaxScaler(feature_range=(0, 1))
 
-# split and apply pre-processing to data
-x_trainMLP, x_testMLP, y_trainMLP, y_testMLP = train_test_split(
-    predictorInputData_scaler.fit_transform(npArrayPredictorInputData),
-    target_scalerMLP.fit_transform(npArrayTarget),
-    train_size=0.6
-)
+# # split and apply pre-processing to data
+# x_trainMLP, x_testMLP, y_trainMLP, y_testMLP = train_test_split(
+#     predictorInputData_scaler.fit_transform(npArrayPredictorInputData),
+#     target_scalerMLP.fit_transform(npArrayTarget),
+#     train_size=0.6
+# )
+# 
+# # split and apply pre-processing to data
+# x_trainPNN, x_testPNN, y_trainPNN, y_testPNN = train_test_split(
+#     predictorInputData_scaler.fit_transform(npArrayPredictorInputData),
+#     target_scalerPNN.fit_transform(npArrayTarget),
+#     train_size=0.6
+# )
 
-# split and apply pre-processing to data
-x_trainPNN, x_testPNN, y_trainPNN, y_testPNN = train_test_split(
-    predictorInputData_scaler.fit_transform(npArrayPredictorInputData),
-    target_scalerPNN.fit_transform(npArrayTarget),
-    train_size=0.6
-)
+trainTestSplit = 0.6
+targetScaledMLP = target_scalerMLP.fit_transform(npArrayTarget)
+targetScaledPNN = target_scalerPNN.fit_transform(npArrayTarget)
+predictorInputDataScaled =  predictorInputData_scaler.fit_transform(npArrayPredictorInputData)
 
-if(showPlots):
+firstIdxTest = int(math.ceil(len(targetDates)*trainTestSplit))
+trainRange = range(0,firstIdxTest)
+testRange = range(firstIdxTest,len(targetDates))
+
+x_trainPNN = predictorInputDataScaled[trainRange,:]
+y_trainPNN = targetScaledPNN[trainRange]
+x_testPNN = predictorInputDataScaled[testRange,:]
+y_testPNN = targetScaledPNN[testRange]
+
+x_trainMLP = predictorInputDataScaled[trainRange,:]
+y_trainMLP = targetScaledMLP[trainRange]
+x_testMLP = predictorInputDataScaled[testRange,:]
+y_testMLP = targetScaledMLP[testRange]
+
+checkInputScaling = 0
+if(checkInputScaling):
     #check the scaling and standardising of inputs 
-    predictorInputDataScaled = np.transpose(predictorInputData_scaler.fit_transform(npArrayPredictorInputData))
-    targetScaled = target_scalerMLP.fit_transform(npArrayTarget)
-    customPlot.plotHist(predictorInputDataScaled.tolist(),binCount,predictorLabels,'Predictor Variables Scaled')
-    customPlot.plotHist([targetScaled.tolist()],binCount,[targetLabel],'Target Scaled - MLP')
+    customPlot.plotHist(np.transpose(predictorInputDataScaled).tolist(),binCount,predictorLabels,'Predictor Variables Scaled')
+    customPlot.plotHist([targetScaledMLP.tolist()],binCount,[targetLabel],'Target Scaled - MLP')
+    customPlot.plotHist([targetScaledPNN.tolist()],binCount,[targetLabel],'Target Scaled - PNN')
 
 #hiddenNeurons = [5,10,15,20,25,30,40,50,60]
 trainNetwork = 0
-hiddenNeurons = [27]
-Feedforward_MLP_NetworkName = 'Feedforward_MLP_'+ targetChoice                       
+hiddenNeurons = 29
+Feedforward_MLP_NetworkName = 'Feedforward_MLP_ext'+ targetChoice +'_'+ classifyDirection                   
  
 if(trainNetwork):
     print('Feedforward MLP Classification Results - Test Hidden Neurons')                                                                     
-    for x in hiddenNeurons:
-        cgnet = algorithms.ConjugateGradient(
-            connection=[
-            layers.Tanh(int(npArrayPredictorInputData.shape[1])),
-            layers.Tanh(x),
-            layers.Output(int(npArrayTarget.shape[1])),
-            ],
-            search_method='golden',
-            update_function='fletcher_reeves',
-            addons=[algorithms.LinearSearch],
-            error='rmse',
-            verbose=True,
-            show_epoch=50
-        )
-           
-        cgnet.train(x_trainMLP, y_trainMLP, x_testMLP, y_testMLP, epochs=250)
+    network = algorithms.ConjugateGradient(
+        connection=[
+        layers.Tanh(int(npArrayPredictorInputData.shape[1])),
+        layers.Tanh(hiddenNeurons),
+        layers.Output(int(npArrayTarget.shape[1])),
+        ],
+        search_method='golden',
+        update_function='fletcher_reeves',
+        addons=[algorithms.LinearSearch],
+        error='rmse',
+        verbose=True,
+        show_epoch=10
+    )
+      
+    network.train(x_trainMLP, y_trainMLP, x_testMLP, y_testMLP, epochs=110)
+    getData.save_network(network,Feedforward_MLP_NetworkName)
+   
+    network.plot_errors()
     
-        cgnet.plot_errors()
-     
-        y_predict = cgnet.predict(x_testMLP)
-        targetDirection = np.transpose(target_scalerMLP.inverse_transform(y_testMLP))
-        estTargetDirection = target_scalerMLP.inverse_transform(y_predict)     
-        estTargetDirection = np.array([math.copysign(1,estTargetDirection[i]) for i in range(len(estTargetDirection))])
-                                                                             
-        print("Hidden Neurons {}: Guessed {} out of {} = {}% correct".format(
-            x, np.sum(targetDirection == estTargetDirection), y_testMLP.size, 100*np.sum(targetDirection == estTargetDirection)/y_testMLP.size
-        ))
-        
-    getData.save_network(cgnet,Feedforward_MLP_NetworkName)
-
+    y_predict = network.predict(x_trainMLP)
+    targetDirection = np.transpose(target_scalerMLP.inverse_transform(y_trainMLP))
+    estTargetDirection = np.sum(target_scalerMLP.inverse_transform(y_predict),axis=1)     
+    estTargetDirection = np.array([math.copysign(1,estTargetDirection[i]) for i in range(len(estTargetDirection))])
+                                                                         
+    print("Hidden Neurons {}: Guessed {} out of {} = {}% correct".format(
+        hiddenNeurons, np.sum(targetDirection == estTargetDirection), y_trainMLP.size, 100*np.sum(targetDirection == estTargetDirection)/y_trainMLP.size
+    ))
+    
 else:
-    cgnet = getData.load_network(Feedforward_MLP_NetworkName)
+    network = getData.load_network(Feedforward_MLP_NetworkName)
     
-cgnet.plot_errors()
+network.plot_errors()
  
-y_predict = cgnet.predict(x_testMLP)
+y_predict = network.predict(x_testMLP)
 targetDirection = np.transpose(target_scalerMLP.inverse_transform(y_testMLP))
-estTargetDirection = target_scalerMLP.inverse_transform(y_predict)     
+estTargetDirection = np.sum(target_scalerMLP.inverse_transform(y_predict),axis=1)  
 estTargetDirection = np.array([math.copysign(1,estTargetDirection[i]) for i in range(len(estTargetDirection))])
 
-print('Feedforward MLP Classification Results')                                                                     
+print('Test MLP Direction Est - Classification Results')                                                                     
 print(Feedforward_MLP_NetworkName+": Guessed {} out of {} = {}% correct".format(
-    np.sum(targetDirection == estTargetDirection), y_testMLP.size, 100*np.sum(targetDirection == estTargetDirection)/y_testMLP.size
+    np.sum(targetDirection == estTargetDirection), targetDirection.size, 100*np.sum(targetDirection == estTargetDirection)/targetDirection.size
 ))
 
-# P&L chart
-npArrayEstTarget = target_scalerMLP.inverse_transform(cgnet.predict(predictorInputData_scaler.fit_transform(npArrayPredictorInputData)))
-npArrayEstTarget = [1 if x>0 else -1 for x in npArrayEstTarget]
-count = len(npArrayTargetPrices)
-startPrice = npArrayTargetPrices[0]
-buyHold = [startPrice]
-strategy = [startPrice]
-strategy2 = [startPrice]
-for i in xrange(1, count):
-    buyHold.append(npArrayTargetPrices[i])
-    strategy.append(strategy[i-1] * ((npArrayTargetPrices[i]/npArrayTargetOpenPrices[i] - 1) * npArrayEstTarget[i] + 1))
-    strategy2.append(strategy2[i-1] + ((npArrayTargetPrices[i] - npArrayTargetOpenPrices[i]) * npArrayEstTarget[i]))
-
-plt.figure
-p1, = plt.plot(targetPricesDates, buyHold,'b')
-p2, = plt.plot(targetPricesDates, strategy,'r')
-p3, = plt.plot(targetPricesDates, strategy2,'g')
-plt.xlabel('Time')
-plt.ylabel(targetLastPriceLabel)
-plt.grid(True)  
-plt.legend([p1, p2, p3], ['Buy/Hold', 'Predictor', 'Predictor2'])   
-plt.title('P&L Chart - MLP')
-plt.show()
-
+strategyPNL,buyHoldPNL = util.getIntraDayPNL(y_predict,[npArrayTargetOpenPrices[i] for i in testRange],[npArrayTargetPrices[i] for i in testRange],dailyInterestRate,testStrategy)
+customPlot.plotPerformance([targetPricesDates[i] for i in testRange],buyHoldPNL,strategyPNL,'BuyHold','Strategy','PNL Chart',testStrategy + ' Strategy - Test MLP Class')                                
+print(Feedforward_MLP_NetworkName+": Strategy PNL = {}, BuyHold PNL = {}".format(
+    strategyPNL[-1], buyHoldPNL[-1]
+)) 
+    
 #pnnStd = np.linspace(0.01, 3, 200)
 pnnStd = [1.25]
 PNN_NetworkName = 'PNN_Network'                      
@@ -329,9 +329,15 @@ for x in pnnStd:
     targetDirection = np.transpose(target_scalerPNN.inverse_transform(y_testPNN))
     estTargetDirection = target_scalerPNN.inverse_transform(y_predict)
     
-    print("Std dev {}: Guessed {} out of {} = {}% correct".format(
-        x, np.sum(targetDirection == estTargetDirection), y_testPNN.size, 100*np.sum(targetDirection == estTargetDirection)/y_testPNN.size
+    print('Test PNN Est - Classification Results')                                                                     
+    print(PNN_NetworkName+": Std dev {}: Guessed {} out of {} = {}% correct".format(
+        x, np.sum(targetDirection == estTargetDirection), targetDirection.size, 100*np.sum(targetDirection == estTargetDirection)/targetDirection.size
     ))
-
+    
+    strategyPNL,buyHoldPNL = util.getIntraDayPNL(y_predict,[npArrayTargetOpenPrices[i] for i in testRange],[npArrayTargetPrices[i] for i in testRange],dailyInterestRate,testStrategy)
+    customPlot.plotPerformance([targetPricesDates[i] for i in testRange],buyHoldPNL,strategyPNL,'BuyHold','Strategy','PNL Chart',testStrategy + ' Strategy - Test PNN Class')                                
+    print(PNN_NetworkName+": Strategy PNL = {}, BuyHold PNL = {}".format(
+        strategyPNL[-1], buyHoldPNL[-1]
+    ))
 nw.plot_errors()          
 getData.save_network(nw,PNN_NetworkName)

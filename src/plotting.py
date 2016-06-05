@@ -51,6 +51,7 @@ def plotHist(data,binCount,plotLabels,title):
     
     for i in range(1,numFigs+1):
         plt.figure(i)
+        plt.suptitle(title)
         for j in range(1,numSubPlotsPerFig+1):
             dataIdx = numSubPlotsPerFig*(i-1) +j-1
             if(dataIdx < numInputs):
@@ -66,8 +67,6 @@ def plotHist(data,binCount,plotLabels,title):
                 plt.xlabel(plotLabels[dataIdx])
                 plt.ylabel('Instances')
                 plt.grid(True)   
-                plt.title(title+' - Figure ' + str(dataIdx+1))    
-
     plt.show()
     
 def subPlotData(x_data,y_data,plotLabels,title):
@@ -88,6 +87,7 @@ def subPlotData(x_data,y_data,plotLabels,title):
     
     for i in range(1,numFigs+1):
         plt.figure(i)
+        plt.suptitle(title)
         for j in range(1,numSubPlotsPerFig+1):
             dataIdx = numSubPlotsPerFig*(i-1) +j-1
             if(dataIdx < len(x_data)):
@@ -99,8 +99,7 @@ def subPlotData(x_data,y_data,plotLabels,title):
                 plt.plot(x_data[dataIdx], y_data[dataIdx], 'b')
                 plt.xlabel('Time')
                 plt.ylabel(plotLabels[dataIdx])
-                plt.grid(True)       
-                plt.title(title+' - Figure ' + str(dataIdx+1))
+                plt.grid(True)     
     plt.show()
     
 def plotPerformance(x_data,y1_data,y2_data,legend1,legend2,plotLabel,title): 

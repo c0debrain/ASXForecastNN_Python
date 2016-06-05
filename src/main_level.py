@@ -8,6 +8,7 @@ import utilities as util
 import matplotlib.pyplot as plt
 import math
 import networkTrainingSetup as setup
+import statsmodels.api as sm
 
 from sklearn import datasets, preprocessing
 from sklearn.cross_validation import train_test_split
@@ -65,7 +66,7 @@ returnsCalcOption = 'LOG_DIFF' #rel_diff
 
 #choose data between these dates 
 #startDate = datetime.datetime(2000, 4, 6)
-startDate = datetime.datetime(2007, 1, 3)
+startDate = datetime.datetime(2000, 5, 9)
 endDate = datetime.datetime(2016, 5, 9)
 
 assert(startDate.isoweekday() in range(1, 6)),"startDate is not a weekday - choose another startDate"
@@ -114,7 +115,6 @@ predictorInputs = []
 predictorInputs.append(['S&P500_DAILY_PX_LAST',useReturn])
 predictorInputs.append(['STFINL_DAILY_PX_LAST',useReturn])
 predictorInputs.append(['SHCOMP_DAILY_PX_LAST',useReturn])
-predictorInputs.append(['ASX200_INDX_GROSS_DAILY_DIV',usePrice])
 predictorInputs.append(['AUDUSD_CURRENCY',useReturn])
 predictorInputs.append(['XAU_CURRENCY',useReturn])
 predictorInputs.append(['CRUDEOIL_COMMODITY',useReturn])
@@ -127,6 +127,16 @@ targetOpenPriceLabel = 'ASX200_DAILY_PX_OPEN'
 targetLastPriceLabel = 'ASX200_DAILY_PX_LAST'
 targetLabel = 'ASX200_INTRADAY_'+returnsCalcOption+'_RETS'
 targetChoice = 'LEVEL'
+testStrategy = 'LONG_SHORT'
+dailyInterestRate = 0.03/365
+
+if(targetChoice == 'DIRECTION'):
+    targetLabel = targetLabel +'_DIR'
+    classifyDirection = 'DUAL_VEC'
+else:
+    classifyDirection = None
+
+isIntraDayClassification = 0
 
 pricesLabels = []
 pricesData = []
@@ -177,15 +187,6 @@ dataContainer = getData.dataContainer(pricesData,pricesDates,pricesLabels,return
 if(showPlots):
     customPlot.subPlotData(dataContainer.pricesDates,dataContainer.pricesData,dataContainer.pricesLabels,'Prices Data')
     customPlot.correlationHeatMap(dataContainer.pricesData,dataContainer.pricesLabels,'Prices Correlation Heatmap')
-   
-#targetChoice = 'DIRECTION'
-if(targetChoice == 'DIRECTION'):
-    targetLabel = targetLabel +'_DIR'
-    classifyDirection = 'DUAL_VEC'
-else:
-    classifyDirection = None
-
-isIntraDayClassification = 0
 
 if ((targetLabel in dataContainer.returnsLabels) | (targetLabel in dataContainer.pricesLabels)):
     target, targetDates, targetPrices, targetPricesDates = setup.createTarget(dataContainer,targetLabel,targetChoice,classifyDirection,returnsCalcOption) 
@@ -207,7 +208,7 @@ npArrayPredictorInputData = np.transpose(np.array(predictorInputData))
 
 binCount = 50
 if(showPlots):
-   # customPlot.plotHist(dataContainer.returnsData,binCount,dataContainer.returnsLabels,'Returns Data Histogram')    
+   #customPlot.plotHist(dataContainer.returnsData,binCount,dataContainer.returnsLabels,'Returns Data Histogram')    
     customPlot.plotHist(predictorInputData,binCount,predictorLabels,'Predictor Variable Histogram')
     customPlot.plotHist([target],binCount,[targetLabel],'Target Histogram')
 
@@ -218,30 +219,42 @@ predictorInputData_scaler = preprocessing.StandardScaler()
 #0.6585 is the max of second derivative of tanh function, yields better training results
 target_scaler = preprocessing.MinMaxScaler(feature_range=(-0.6585, 0.6585))
 
+trainTestSplit = 0.6
+targetScaled = target_scaler.fit_transform(npArrayTarget)
+predictorInputDataScaled =  predictorInputData_scaler.fit_transform(npArrayPredictorInputData)
+
 # split and apply pre-processing to data
-x_train, x_test, y_train, y_test = train_test_split(
-    predictorInputData_scaler.fit_transform(npArrayPredictorInputData),
-    target_scaler.fit_transform(npArrayTarget),
-    train_size=0.6
-)
+# x_train, x_test, y_train, y_test = train_test_split(
+#     predictorInputData_scaler.fit_transform(npArrayPredictorInputData),
+#     targetScaled,
+#     train_size=trainTestSplit
+# )
+
+firstIdxTest = int(math.ceil(len(targetDates)*trainTestSplit))
+trainRange = range(0,firstIdxTest)
+testRange = range(firstIdxTest,len(targetDates))
+
+x_train = predictorInputDataScaled[trainRange,:]
+y_train = targetScaled[trainRange]
+
+x_test = predictorInputDataScaled[testRange,:]
+y_test = targetScaled[testRange]
 
 checkInputScaling = 0
 if(checkInputScaling):
     #check the scaling and standardising of inputs 
-    predictorInputDataScaled = np.transpose(predictorInputData_scaler.fit_transform(npArrayPredictorInputData))
-    targetScaled = target_scaler.fit_transform(npArrayTarget)
-    customPlot.plotHist(predictorInputDataScaled.tolist(),binCount,predictorLabels,'Predictor Variables Scaled')
+    customPlot.plotHist(np.transpose(predictorInputDataScaled).tolist(),binCount,predictorLabels,'Predictor Variables Scaled')
     customPlot.plotHist([targetScaled.tolist()],binCount,[targetLabel],'Target Scaled')
 
 runMLP = 1
 if(runMLP):
-    numHiddenNeurons = 22
-    Feedforward_MLP_NetworkName = 'Feedforward_MLP_'+ targetChoice    
-    trainNetwork = 0                   
+    numHiddenNeurons = 29
+    Feedforward_MLP_NetworkName_extended = 'Feedforward_MLP_ext'+ targetChoice    
+    trainNetwork = 0
       
     if(trainNetwork):   
         print('Feedforward MLP Level Results')                                                                                     
-        cgnet = algorithms.ConjugateGradient(
+        network = algorithms.ConjugateGradient(
               connection=[
                  layers.Tanh(npArrayPredictorInputData.shape[1]),
                  layers.Tanh(numHiddenNeurons),
@@ -252,64 +265,112 @@ if(runMLP):
               addons=[algorithms.LinearSearch],
               error='rmse',
               verbose=True,
-              show_epoch=50,
+              show_epoch=10,
               )
-              
-        cgnet.train(x_train, y_train, x_test,y_test,epochs=350)
+                
+        network.train(x_train, y_train, x_test,y_test,epochs=110)
         #not working, cant have numbers in name
         #networkName = 'ConjGrad_tanh<'+str(npArrayPredictorInputData.shape[1])+'>_tanh<'+str(numHiddenNeurons)+'>_output<'+str(npArrayTarget.shape[1])+'>'
-        getData.save_network(cgnet,Feedforward_MLP_NetworkName)   
-    else:
-        cgnet = getData.load_network(Feedforward_MLP_NetworkName)
+        getData.save_network(network,Feedforward_MLP_NetworkName_extended)  
          
-    cgnet.plot_errors()
-    npArrayEstTarget = util.applyNetworkOriginalScale(npArrayPredictorInputData,predictorInputData_scaler,target_scaler,cgnet)
-     #plot estimated target performance
-    customPlot.plotPerformance(targetDates,npArrayTarget,npArrayEstTarget,'True','Est',targetLabel,'Returns Performance - MLP')       
-     
-    #tranform target to prices  
-    if(isIntraDayClassification):
-        estPrices,temp = util.transformIntraDayPrices(npArrayTargetOpenPrices,
-                                                     npArrayEstTarget,
-                                                     targetDates,
-                                                     returnsCalcOption)
-    else:
-        estPrices,temp = util.transformPrices(npArrayTargetPrices[0],
-                                              npArrayEstTarget,
-                                              targetDates,
-                                              returnsCalcOption)
-         
-    npArrayEstTargetPrices = np.array(estPrices)
-    #plot estimated target prices performance
-    customPlot.plotPerformance(targetPricesDates,npArrayTargetPrices,npArrayEstTargetPrices,'True','Est',targetLastPriceLabel,'Price Performance - MLP')                   
-     
-    targetErrs = npArrayTarget - npArrayEstTarget
-    customPlot.plotHist([targetErrs.tolist()],binCount,[targetLabel +'_ERROR'],'Target Returns Error - MLP')
-     
-    print 'Feedforward NN Results - Intra Day Returns Performance'
-    print 'Mean err = ',np.mean(targetErrs)
-    print 'RMSE = ', np.sqrt(np.mean(targetErrs**2))
-     
-    #use level estimated returns vectors to infer target direction 
-    targetDirection = np.array([math.copysign(1,npArrayTarget[i]) for i in range(len(npArrayTarget))])
-    estTargetDirection = np.array([math.copysign(1,npArrayEstTarget[i]) for i in range(len(npArrayEstTarget))])
-     
-    print('Feedforward MLP Level Est - Classification Results')                                                                     
-    print(Feedforward_MLP_NetworkName+": Guessed {} out of {} = {}% correct".format(
-        np.sum(targetDirection == estTargetDirection), npArrayTarget.size, 100*np.sum(targetDirection == estTargetDirection)/npArrayTarget.size
-    ))
-     
-    targetPricesErrs = npArrayTargetPrices - npArrayEstTargetPrices
-    customPlot.plotHist([targetPricesErrs.tolist()],binCount,[targetLastPriceLabel+'_ERROR'],'Target Prices Error - MLP')
-     
-    print 'Feedforward NN Results - Intra Day Price Performance'
-    print 'Mean err = ',np.mean(targetPricesErrs)
-    print 'RMSE = ', np.sqrt(np.mean(targetPricesErrs**2))
+        #network = getData.load_network(Feedforward_MLP_NetworkName_extended)
+        
+        y_train_Predict = target_scaler.inverse_transform(network.predict(x_train))
+        y_train_TargetScaled = target_scaler.inverse_transform(y_train[:,0])
+        trainErrs = y_train_TargetScaled - y_train_Predict[:,0]
     
-    strategyPNL,buyHoldPNL = util.getIntraDayPNL2(npArrayEstTarget,npArrayTargetOpenPrices,npArrayTargetPrices,None,'LONG_SHORT')
-    customPlot.plotPerformance(targetPricesDates,buyHoldPNL,strategyPNL,'BuyHold','Strategy','PNL Chart','Long Short Strategy - MLP')                                
+        customPlot.plotHist([trainErrs.tolist()],binCount,[targetLabel +'_ERROR'],'Target Returns Error - Trained MLP')
+        
+        customPlot.plotPerformance([targetDates[i] for i in trainRange],y_train_TargetScaled,y_train_Predict,'True','Est',targetLabel,'Returns Performance - Trained MLP')                  
+        
+        print 'Trained MLP Results - Intra Day Returns Performance'
+        print 'Mean err = ',np.mean(trainErrs)
+        print 'RMSE = ', np.sqrt(np.mean(trainErrs**2))
+        
+        #use level estimated returns vectors to infer target direction 
+        targetDirection = np.array([math.copysign(1,y_train_TargetScaled[i]) for i in range(len(y_train_TargetScaled))])
+        estTargetDirection = np.array([math.copysign(1,y_train_Predict[i]) for i in range(len(y_train_Predict))])
+        
+        print('Trained MLP Level Est - Classification Results')                                                                     
+        print(Feedforward_MLP_NetworkName_extended+": Guessed {} out of {} = {}% correct".format(
+            np.sum(targetDirection == estTargetDirection), targetDirection.size, 100*np.sum(targetDirection == estTargetDirection)/targetDirection.size
+        )) 
+    else:
+        network = getData.load_network(Feedforward_MLP_NetworkName_extended)
+         
+    network.plot_errors()      
+    y_test_Predict = target_scaler.inverse_transform(network.predict(x_test))
+    y_test_TargetScaled = target_scaler.inverse_transform(y_test[:,0])
+    trainErrs = y_test_TargetScaled - y_test_Predict[:,0]
 
-runGRNN = 0
+    customPlot.plotHist([trainErrs.tolist()],binCount,[targetLabel +'_ERROR'],'Target Returns Error - Test MLP')
+    customPlot.plotPerformance([targetDates[i] for i in testRange],y_test_TargetScaled,y_test_Predict,'True','Est',targetLabel,'Returns Performance - Test MLP')                  
+        
+    print 'Test MLP Results - Intra Day Returns Performance'
+    print 'Mean err = ',np.mean(trainErrs)
+    print 'RMSE = ', np.sqrt(np.mean(trainErrs**2))
+    
+    #use level estimated returns vectors to infer target direction 
+    targetDirection = np.array([math.copysign(1,y_test_TargetScaled[i]) for i in range(len(y_test_TargetScaled))])
+    estTargetDirection = np.array([math.copysign(1,y_test_Predict[i]) for i in range(len(y_test_Predict))])
+    
+    print('Test MLP Level Est - Classification Results')                                                                     
+    print(Feedforward_MLP_NetworkName_extended+": Guessed {} out of {} = {}% correct".format(
+        np.sum(targetDirection == estTargetDirection), targetDirection.size, 100*np.sum(targetDirection == estTargetDirection)/targetDirection.size
+    ))
+
+    strategyPNL,buyHoldPNL = util.getIntraDayPNL(y_test_Predict,[npArrayTargetOpenPrices[i] for i in testRange],[npArrayTargetPrices[i] for i in testRange],dailyInterestRate,testStrategy)
+    customPlot.plotPerformance([targetPricesDates[i] for i in testRange],buyHoldPNL,strategyPNL,'BuyHold','Strategy','PNL Chart',testStrategy + ' Strategy - Test MLP')                                
+    print(Feedforward_MLP_NetworkName_extended+": Strategy PNL = {}, BuyHold PNL = {}".format(
+        strategyPNL[-1], buyHoldPNL[-1]
+    )) 
+        
+#     #tranform target to prices  
+#     if(isIntraDayClassification):
+#         estPrices,temp = util.transformIntraDayPrices(npArrayTargetOpenPrices,
+#                                                      npArrayEstTarget,
+#                                                      targetDates,
+#                                                      returnsCalcOption)
+#     else:
+#         estPrices,temp = util.transformPrices(npArrayTargetPrices[0],
+#                                               npArrayEstTarget,
+#                                               targetDates,
+#                                               returnsCalcOption)
+#          
+#     npArrayEstTargetPrices = np.array(estPrices)
+#     #plot estimated target prices performance
+#     customPlot.plotPerformance(targetPricesDates,npArrayTargetPrices,npArrayEstTargetPrices,'True','Est',targetLastPriceLabel,'Price Performance - MLP')     
+                   
+#     targetPricesErrs = npArrayTargetPrices - npArrayEstTargetPrices
+#     customPlot.plotHist([targetPricesErrs.tolist()],binCount,[targetLastPriceLabel+'_ERROR'],'Target Prices Error - MLP')
+#      
+#     print 'Feedforward NN Results - Intra Day Price Performance'
+#     print 'Mean err = ',np.mean(targetPricesErrs)
+#     print 'RMSE = ', np.sqrt(np.mean(targetPricesErrs**2))
+    
+#     #tranform target to prices  
+#     if(isIntraDayClassification):
+#         adjClosePrices,temp = util.transformIntraDayAdjPrices(npArrayTargetOpenPrices,
+#                                                              npArrayTargetPrices,
+#                                                              npArrayEstTarget,
+#                                                              targetDates,
+#                                                              returnsCalcOption)
+#  
+#     npArrayAdjClosePrices = np.array(adjClosePrices)
+#          
+#     #plot estimated target prices performance
+#     customPlot.plotPerformance(targetPricesDates,npArrayTargetPrices,npArrayAdjClosePrices,'True','Est',targetLastPriceLabel,'Adjusted Close Price Performance - MLP')                                
+#     strategyPNL,buyHoldPNL = util.getIntraDayPNL2(npArrayEstTarget,npArrayTargetOpenPrices,npArrayTargetPrices,None,'LONG_SHORT')
+#     customPlot.plotPerformance(targetPricesDates,buyHoldPNL,strategyPNL,'BuyHold','Strategy','PNL Chart','Long Short Strategy - MLP')                                
+#  
+#     targetPricesErrs = npArrayTargetPrices - npArrayAdjClosePrices
+#     customPlot.plotHist([targetPricesErrs.tolist()],binCount,[targetLastPriceLabel+'_ERROR'],'Target Close Prices Error - MLP')
+#       
+#     print 'Feedforward NN Results - Intra Day Close Price Performance'
+#     print 'Mean err = ',np.mean(targetPricesErrs)
+#     print 'RMSE = ', np.sqrt(np.mean(targetPricesErrs**2))
+        
+runGRNN = 1
 if(runGRNN):
     #grnnStd = np.linspace(0.05, 2, 200)    
     grnnStd = [1.8]
@@ -318,63 +379,158 @@ if(runGRNN):
     if(trainNetwork):  
         print('GRNN Classification Results - Test Std dev input')  
         for x in grnnStd:
-            nw = algorithms.GRNN(std=x, verbose=True)
-            nw.train(x_train, y_train)
-        
-            y_testEst = target_scaler.inverse_transform(nw.predict(x_test))
-            y_testTrue = target_scaler.inverse_transform(y_test)
+            grnnNW = algorithms.GRNN(std=x, verbose=True)
+            grnnNW.train(x_train, y_train)
             
-            print("Std dev {}: RMSE = {}".format(
-                x, np.sqrt(np.mean((y_testEst-y_testTrue)**2)))
-            )  
+            getData.save_network(grnnNW,GRNN_NetworkName)               
+            
+        y_train_Predict = target_scaler.inverse_transform(grnnNW.predict(x_train))
+        y_train_TargetScaled = target_scaler.inverse_transform(y_train[:,0])
+        trainErrs = y_train_TargetScaled - y_train_Predict[:,0]
+    
+        customPlot.plotHist([trainErrs.tolist()],binCount,[targetLabel +'_ERROR'],'Target Returns Error - Trained GRNN')       
+        customPlot.plotPerformance([targetDates[i] for i in trainRange],y_train_TargetScaled,y_train_Predict,'True','Est',targetLabel,'Returns Performance - Trained GRNN')                  
         
-        getData.save_network(nw,GRNN_NetworkName)
+        print 'Trained GRNN Results - Intra Day Returns Performance'
+        print 'Mean err = ',np.mean(trainErrs)
+        print 'RMSE = ', np.sqrt(np.mean(trainErrs**2))
+        
+        #use level estimated returns vectors to infer target direction 
+        targetDirection = np.array([math.copysign(1,y_train_TargetScaled[i]) for i in range(len(y_train_TargetScaled))])
+        estTargetDirection = np.array([math.copysign(1,y_train_Predict[i]) for i in range(len(y_train_Predict))])
+        
+        print('Trained GRNN Level Est - Classification Results')                                                                     
+        print(GRNN_NetworkName+": Guessed {} out of {} = {}% correct".format(
+            np.sum(targetDirection == estTargetDirection), targetDirection.size, 100*np.sum(targetDirection == estTargetDirection)/targetDirection.size
+        ))
     else:
-        nw = getData.load_network(GRNN_NetworkName)  
+        grnnNW = getData.load_network(GRNN_NetworkName)  
           
-    nw.plot_errors()      
-    npArrayEstTarget = util.applyNetworkOriginalScale(npArrayPredictorInputData,predictorInputData_scaler,target_scaler,nw)
-    #plot estimated target performance
-    customPlot.plotPerformance(targetDates,npArrayTarget,npArrayEstTarget,'True','Est',targetLabel,'Returns Performance - GRNN')                  
-    
-    #tranform target to prices  
-    if(isIntraDayClassification):
-        estPrices,temp = util.transformIntraDayPrices(npArrayTargetOpenPrices,
-                                                     npArrayEstTarget,
-                                                     targetDates,
-                                                     returnsCalcOption)
-    else:
-        estPrices,temp = util.transformPrices(npArrayTargetPrices[0],
-                                              npArrayEstTarget,
-                                              targetDates,
-                                              returnsCalcOption)
+    grnnNW.plot_errors()      
+
+    y_test_Predict = target_scaler.inverse_transform(grnnNW.predict(x_test))
+    y_test_TargetScaled = target_scaler.inverse_transform(y_test[:,0])
+    trainErrs = y_test_TargetScaled - y_test_Predict[:,0]
+
+    customPlot.plotHist([trainErrs.tolist()],binCount,[targetLabel +'_ERROR'],'Target Returns Error - Test GRNN')
+    customPlot.plotPerformance([targetDates[i] for i in testRange],y_test_TargetScaled,y_test_Predict,'True','Est',targetLabel,'Returns Performance - Test GRNN')                  
         
-    npArrayEstTargetPrices = np.array(estPrices)
-    #plot estimated target prices performance
-    customPlot.plotPerformance(targetPricesDates,npArrayTargetPrices,npArrayEstTargetPrices,'True','Est',targetLastPriceLabel,'Price Performance - GRNN')                                
-    
-    targetErrs = npArrayTarget - npArrayEstTarget
-    customPlot.plotHist([targetErrs.tolist()],binCount,[targetLabel +'_ERROR'],'Target Returns Error - GRNN')
-    
-    print 'GRNN Results - Intra Day Returns Performance'
-    print 'Mean err = ',np.mean(targetErrs)
-    print 'RMSE = ', np.sqrt(np.mean(targetErrs**2))
+    print 'Test GRNN Results - Intra Day Returns Performance'
+    print 'Mean err = ',np.mean(trainErrs)
+    print 'RMSE = ', np.sqrt(np.mean(trainErrs**2))
     
     #use level estimated returns vectors to infer target direction 
-    targetDirection = np.array([math.copysign(1,npArrayTarget[i]) for i in range(len(npArrayTarget))])
-    estTargetDirection = np.array([math.copysign(1,npArrayEstTarget[i]) for i in range(len(npArrayEstTarget))])
+    targetDirection = np.array([math.copysign(1,y_test_TargetScaled[i]) for i in range(len(y_test_TargetScaled))])
+    estTargetDirection = np.array([math.copysign(1,y_test_Predict[i]) for i in range(len(y_test_Predict))])
     
-    print('GRNN Level Est - Classification Results')                                                                     
+    print('Test GRNN Level Est - Classification Results')                                                                     
     print(GRNN_NetworkName+": Guessed {} out of {} = {}% correct".format(
-        np.sum(targetDirection == estTargetDirection), npArrayTarget.size, 100*np.sum(targetDirection == estTargetDirection)/npArrayTarget.size
+        np.sum(targetDirection == estTargetDirection), targetDirection.size, 100*np.sum(targetDirection == estTargetDirection)/targetDirection.size
     ))
+
+    strategyPNL,buyHoldPNL = util.getIntraDayPNL(y_test_Predict,[npArrayTargetOpenPrices[i] for i in testRange],[npArrayTargetPrices[i] for i in testRange],dailyInterestRate,testStrategy)
+    customPlot.plotPerformance([targetPricesDates[i] for i in testRange],buyHoldPNL,strategyPNL,'BuyHold','Strategy','PNL Chart',testStrategy +' Strategy -  Test GRNN')                                
+    print(GRNN_NetworkName+": Strategy PNL = {}, BuyHold PNL = {}".format(
+        strategyPNL[-1], buyHoldPNL[-1]
+    ))  
+        
+#     #tranform target to prices  
+#     if(isIntraDayClassification):
+#         estPrices,temp = util.transformIntraDayPrices(npArrayTargetOpenPrices,
+#                                                      npArrayEstTarget,
+#                                                      targetDates,
+#                                                      returnsCalcOption)
+#     else:
+#         estPrices,temp = util.transformPrices(npArrayTargetPrices[0],
+#                                               npArrayEstTarget,
+#                                               targetDates,
+#                                               returnsCalcOption)
+#         
+#     npArrayEstTargetPrices = np.array(estPrices)
+#     #plot estimated target prices performance
+#     customPlot.plotPerformance(targetPricesDates,npArrayTargetPrices,npArrayEstTargetPrices,'True','Est',targetLastPriceLabel,'Price Performance - GRNN')                                
+#     
+#     targetPricesErrs = npArrayTargetPrices - npArrayEstTargetPrices
+#     customPlot.plotHist([targetPricesErrs.tolist()],binCount,[targetLastPriceLabel+'_ERROR'],'Target Prices Error - GRNN')
+#     
+#     print 'GRNN Results - Intra Day Price Performance'
+#     print 'Mean err = ',np.mean(targetPricesErrs)
+#     print 'RMSE = ', np.sqrt(np.mean(targetPricesErrs**2))
+
+runOLS = 1
+if(runOLS):
+    OLS_ObjName = 'OLS_LevelPredictor_ext'
+    trainOLS = 1
+    predictorInputs.append(['ASX200_INDX_GROSS_DAILY_DIV',usePrice])
+    predictorInputData,predictorLabels =  setup.createPredictorVariables(dataContainer,predictorInputs,returnsCalcOption)
+    #convert all targets to numpy arrays
+    npArrayPredictorInputData = np.transpose(np.array(predictorInputData))
+    predictorInputDataScaled =  predictorInputData_scaler.fit_transform(npArrayPredictorInputData)
+
+    firstIdxTest = int(math.ceil(len(targetDates)*trainTestSplit))
+    trainRange = range(0,firstIdxTest)
+    testRange = range(firstIdxTest,len(targetDates))
+     
+    x_train = predictorInputDataScaled[trainRange,:]
+    y_train = targetScaled[trainRange]
+     
+    x_test = predictorInputDataScaled[testRange,:]
+    y_test = targetScaled[testRange]
     
-    targetPricesErrs = npArrayTargetPrices - npArrayEstTargetPrices
-    customPlot.plotHist([targetPricesErrs.tolist()],binCount,[targetLastPriceLabel+'_ERROR'],'Target Prices Error - GRNN')
+    x_train = sm.add_constant(x_train)
+    x_test = sm.add_constant(x_test)
+        
+    if(trainOLS): 
+        model = sm.OLS(y_train, x_train)
+        OLS_LevelPredictor = model.fit()  
+        getData.save_obj(OLS_LevelPredictor,OLS_ObjName)         
+        print(OLS_LevelPredictor.summary())
+        
+        y_train_Predict = target_scaler.inverse_transform(OLS_LevelPredictor.predict(x_train))
+        y_train_TargetScaled = target_scaler.inverse_transform(y_train[:,0])
+        trainErrs = y_train_TargetScaled - y_train_Predict
     
-    print 'GRNN Results - Intra Day Price Performance'
-    print 'Mean err = ',np.mean(targetPricesErrs)
-    print 'RMSE = ', np.sqrt(np.mean(targetPricesErrs**2))
+        customPlot.plotHist([trainErrs.tolist()],binCount,[targetLabel +'_ERROR'],'Target Returns Error - Trained OLS')
+        customPlot.plotPerformance([targetDates[i] for i in trainRange],y_train_TargetScaled,y_train_Predict,'True','Est',targetLabel,'Returns Performance - Trained OLS')                  
+        
+        print 'Trained OLS Results - Intra Day Returns Performance'
+        print 'Mean err = ',np.mean(trainErrs)
+        print 'RMSE = ', np.sqrt(np.mean(trainErrs**2))
+        
+        #use level estimated returns vectors to infer target direction 
+        targetDirection = np.array([math.copysign(1,y_train_TargetScaled[i]) for i in range(len(y_train_TargetScaled))])
+        estTargetDirection = np.array([math.copysign(1,y_train_Predict[i]) for i in range(len(y_train_Predict))])
+        
+        print('Trained OLS Level Est - Classification Results')                                                                     
+        print(OLS_ObjName+": Guessed {} out of {} = {}% correct".format(
+            np.sum(targetDirection == estTargetDirection), targetDirection.size, 100*np.sum(targetDirection == estTargetDirection)/targetDirection.size
+        ))
+        
+    else:
+        OLS_LevelPredictor = getData.load_obj(OLS_ObjName)         
+
+    y_test_Predict = target_scaler.inverse_transform(OLS_LevelPredictor.predict(x_test))
+    y_test_TargetScaled = target_scaler.inverse_transform(y_test[:,0])
+    trainErrs = y_test_TargetScaled - y_test_Predict
     
-    strategyPNL,buyHoldPNL = util.getIntraDayPNL2(npArrayEstTarget,npArrayTargetOpenPrices,npArrayTargetPrices,None,'LONG_SHORT')
-    customPlot.plotPerformance(targetPricesDates,buyHoldPNL,strategyPNL,'BuyHold','Strategy','PNL Chart','Long Short Strategy - GRNN')                                
+    customPlot.plotHist([trainErrs.tolist()],binCount,[targetLabel +'_ERROR'],'Target Returns Error - Test OLS')
+    customPlot.plotPerformance([targetDates[i] for i in testRange],y_test_TargetScaled,y_test_Predict,'True','Est',targetLabel,'Returns Performance - Test OLS')                  
+        
+    print 'Test OLS Results - Intra Day Returns Performance'
+    print 'Mean err = ',np.mean(trainErrs)
+    print 'RMSE = ', np.sqrt(np.mean(trainErrs**2))
+    
+    #use level estimated returns vectors to infer target direction 
+    targetDirection = np.array([math.copysign(1,y_test_TargetScaled[i]) for i in range(len(y_test_TargetScaled))])
+    estTargetDirection = np.array([math.copysign(1,y_test_Predict[i]) for i in range(len(y_test_Predict))])
+    
+    print('Test OLS Level Est - Classification Results')                                                                     
+    print(OLS_ObjName+": Guessed {} out of {} = {}% correct".format(
+        np.sum(targetDirection == estTargetDirection), targetDirection.size, 100*np.sum(targetDirection == estTargetDirection)/targetDirection.size
+    ))
+
+    strategyPNL,buyHoldPNL = util.getIntraDayPNL(y_test_Predict,[npArrayTargetOpenPrices[i] for i in testRange],[npArrayTargetPrices[i] for i in testRange],dailyInterestRate,testStrategy)
+    customPlot.plotPerformance([targetPricesDates[i] for i in testRange],buyHoldPNL,strategyPNL,'BuyHold','Strategy','PNL Chart',testStrategy + ' Strategy - Test OLS')                                
+    print(OLS_ObjName+": Strategy PNL = {}, BuyHold PNL = {}".format(
+        strategyPNL[-1], buyHoldPNL[-1]
+    ))   
