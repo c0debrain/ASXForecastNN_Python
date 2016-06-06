@@ -108,6 +108,8 @@ pricesInputs.append(['AUD1Y_SWAP','Indices','ADSWAP1_Curncy',lagAsianMarketClose
 pricesInputs.append(['AUD10Y_GOVT','Indices','XM1_Comdty',lagAsianMarketClose])
 pricesInputs.append(['USD10Y_GOVT','Indices','TY1_Comdty',lagAmericanMarketClose])
 pricesInputs.append(['USDJPY_CURRENCY','Indices','USDJPY_Curncy',lagAmericanMarketClose])
+pricesInputs.append(['ASX200_ACCUMULATION_OPEN','Indices','ASA51_PX_OPEN',lagAsianMarketOpen])
+pricesInputs.append(['ASX200_ACCUMULATION_LAST','Indices','ASA51_PX_LAST',lagAsianMarketOpen])
 
 useReturn = 0
 usePrice = 1
@@ -200,6 +202,9 @@ else:
 
 npArrayTarget = util.convertTargetListToNumpyArray(target)
 npArrayTargetPrices = np.array(targetPrices)
+accumulationOpenPrices = dataContainer.pricesData[dataContainer.pricesLabels.index('ASX200_ACCUMULATION_OPEN')][1:]
+accumulationClosePrices = dataContainer.pricesData[dataContainer.pricesLabels.index('ASX200_ACCUMULATION_LAST')][1:]
+ 
 if(isIntraDayClassification):
     npArrayTargetOpenPrices = np.array(targetOpenPrices)
 
@@ -310,10 +315,10 @@ print(Feedforward_MLP_NetworkName+": Guessed {} out of {} = {}% correct".format(
     np.sum(targetDirection == estTargetDirection), targetDirection.size, 100*np.sum(targetDirection == estTargetDirection)/targetDirection.size
 ))
 
-strategyPNL,buyHoldPNL = util.getIntraDayPNL(y_predict,[npArrayTargetOpenPrices[i] for i in testRange],[npArrayTargetPrices[i] for i in testRange],dailyInterestRate,testStrategy)
-customPlot.plotPerformance([targetPricesDates[i] for i in testRange],buyHoldPNL,strategyPNL,'BuyHold','Strategy','PNL Chart',testStrategy + ' Strategy - Test MLP Class')                                
-print(Feedforward_MLP_NetworkName+": Strategy PNL = {}, BuyHold PNL = {}".format(
-    strategyPNL[-1], buyHoldPNL[-1]
+strategyPNL,buyHoldPNL,accumulationPNL = util.getIntraDayPNL(accumulationClosePrices,y_predict,[npArrayTargetOpenPrices[i] for i in testRange],[npArrayTargetPrices[i] for i in testRange],dailyInterestRate,testStrategy)
+customPlot.plotPerformance([targetPricesDates[i] for i in testRange],accumulationPNL,strategyPNL,'Buy-Hold','Strategy','PNL Chart',testStrategy + ' Strategy - Test MLP Class')                                
+print(Feedforward_MLP_NetworkName+": Strategy PNL = {}, Buy-Hold PNL = {}".format(
+    strategyPNL[-1], accumulationPNL[-1]
 )) 
     
 #pnnStd = np.linspace(0.01, 3, 200)
@@ -325,19 +330,29 @@ for x in pnnStd:
     nw = algorithms.PNN(std=x, verbose=True)
     nw.train(x_trainPNN, y_trainPNN)
    
-    y_predict = nw.predict(x_testPNN)
-    targetDirection = np.transpose(target_scalerPNN.inverse_transform(y_testPNN))
+    y_predict = nw.predict(x_trainPNN)
+    targetDirection = np.transpose(target_scalerPNN.inverse_transform(y_trainPNN))
     estTargetDirection = target_scalerPNN.inverse_transform(y_predict)
     
-    print('Test PNN Est - Classification Results')                                                                     
+    print('Train PNN Est - Classification Results')                                                                     
     print(PNN_NetworkName+": Std dev {}: Guessed {} out of {} = {}% correct".format(
         x, np.sum(targetDirection == estTargetDirection), targetDirection.size, 100*np.sum(targetDirection == estTargetDirection)/targetDirection.size
-    ))
+    )) 
     
-    strategyPNL,buyHoldPNL = util.getIntraDayPNL(y_predict,[npArrayTargetOpenPrices[i] for i in testRange],[npArrayTargetPrices[i] for i in testRange],dailyInterestRate,testStrategy)
-    customPlot.plotPerformance([targetPricesDates[i] for i in testRange],buyHoldPNL,strategyPNL,'BuyHold','Strategy','PNL Chart',testStrategy + ' Strategy - Test PNN Class')                                
-    print(PNN_NetworkName+": Strategy PNL = {}, BuyHold PNL = {}".format(
-        strategyPNL[-1], buyHoldPNL[-1]
-    ))
 nw.plot_errors()          
 getData.save_network(nw,PNN_NetworkName)
+
+y_predict = nw.predict(x_testPNN)
+targetDirection = np.transpose(target_scalerPNN.inverse_transform(y_testPNN))
+estTargetDirection = target_scalerPNN.inverse_transform(y_predict)
+
+print('Test PNN Est - Classification Results')                                                                     
+print(PNN_NetworkName+": Std dev {}: Guessed {} out of {} = {}% correct".format(
+    x, np.sum(targetDirection == estTargetDirection), targetDirection.size, 100*np.sum(targetDirection == estTargetDirection)/targetDirection.size
+))
+
+strategyPNL,buyHoldPNL,accumulationPNL = util.getIntraDayPNL(accumulationClosePrices,y_predict,[npArrayTargetOpenPrices[i] for i in testRange],[npArrayTargetPrices[i] for i in testRange],dailyInterestRate,testStrategy)
+customPlot.plotPerformance([targetPricesDates[i] for i in testRange],accumulationPNL,strategyPNL,'Buy-Hold','Strategy','PNL Chart',testStrategy + ' Strategy - Test PNN Class')                                
+print(PNN_NetworkName+": Strategy PNL = {}, Buy-Hold PNL = {}".format(
+    strategyPNL[-1], accumulationPNL[-1]
+))

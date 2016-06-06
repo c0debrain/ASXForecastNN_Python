@@ -123,14 +123,18 @@ def applyNetworkOriginalScale(inputOriginalScale,predictorInputData_scaler,targe
     estTarget = target_scaler.inverse_transform(network.predict(predictorInputData_scaler.fit_transform(inputOriginalScale)))
     return estTarget
 
-def getIntraDayPNL(estReturns,openPrices,lastPrices,dailyInterestRate,option):
+def getIntraDayPNL(accumIndexLastPrices,estReturns,openPrices,lastPrices,dailyInterestRate,option):
          
     startPrice = lastPrices[0]     
     strategyPNL = [startPrice]
     buyHoldPNL = [startPrice]
+    accumulation = [startPrice]
+    accumulationUnits = startPrice / accumIndexLastPrices[0]
+    
     for idx in range(1,len(estReturns)):
         
         buyHoldPNL.append(lastPrices[idx]-openPrices[idx] + buyHoldPNL[idx-1])
+        accumulation.append(accumIndexLastPrices[idx] * accumulationUnits)
         
         if(estReturns[idx] > 0):
             #buy at open and sell at close 
@@ -144,8 +148,10 @@ def getIntraDayPNL(estReturns,openPrices,lastPrices,dailyInterestRate,option):
                     strategyPNL.append((1+dailyInterestRate)*strategyPNL[idx-1])      
                 else:
                     strategyPNL.append(strategyPNL[idx-1])          
-    
-    return strategyPNL,buyHoldPNL
+            else:
+                    strategyPNL.append(strategyPNL[idx-1])  
+                            
+    return strategyPNL,buyHoldPNL,accumulation
 
 def getIntraDayPNL2(estReturns,openPrices,lastPrices,dailyInterestRate,option):
     startPrice = lastPrices[0]     
