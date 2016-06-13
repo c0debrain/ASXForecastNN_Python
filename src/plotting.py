@@ -20,6 +20,7 @@ def correlationHeatMap(data,labels,title):
     heatmap = ax.pcolor(corrMat,cmap='RdBu')
     plt.colorbar(heatmap)
     plt.xlabel(title)
+    plt.axis('tight')
     
     # put the major ticks at the middle of each cell
     ax.set_xticks(np.arange(array.shape[0])+0.5, minor=False)

@@ -1,6 +1,7 @@
 import math
 import numpy as np
 import datetime
+import plotting as customPlot
 
 def appendData(newDataEntry,newDateEntry, newLabel, data,dates,labels):
     
@@ -119,8 +120,8 @@ def getIntraDayReturns(openPrices,closePrices,dates,option):
                 
     return returns,[dates[i] for i in range(1,len(openPrices))]
 
-def applyNetworkOriginalScale(inputOriginalScale,predictorInputData_scaler,target_scaler,network):    
-    estTarget = target_scaler.inverse_transform(network.predict(predictorInputData_scaler.fit_transform(inputOriginalScale)))
+def applyNetworkReturnOriginalScale(inputTrainedScale,target_scaler,network):    
+    estTarget = target_scaler.inverse_transform(network.predict(inputTrainedScale))
     return estTarget
 
 def getIntraDayPNL(accumIndexLastPrices,estReturns,openPrices,lastPrices,dailyInterestRate,option):
@@ -166,5 +167,23 @@ def getIntraDayPNL2(estReturns,openPrices,lastPrices,dailyInterestRate,option):
     
     return strategyPNL,buyHoldPNL     
     
+def predictorResultsSummary(binCount,histTitle,plotTitle,targetLabel,dates,y_target,y_predict):
+    errs = y_target - y_predict
+    customPlot.plotHist([errs.tolist()],binCount,[targetLabel +'_ERROR'],histTitle)
+    customPlot.plotPerformance(dates,y_target,y_predict,'True','Est',targetLabel,plotTitle)                  
     
+    print targetLabel + ' ' + plotTitle
+    print 'Mean error = ',np.mean(errs)
+    print 'RMSE = ', np.sqrt(np.mean(errs**2))
+    print 'Corr = ', np.corrcoef(y_target,y_predict)[0,1]
     
+    #use level estimated returns vectors to infer target direction 
+    targetDirection = np.array([math.copysign(1,y_target[i]) for i in range(len(y_target))])
+    estTargetDirection = np.array([math.copysign(1,y_predict[i]) for i in range(len(y_predict))])
+    
+    print targetLabel + ' ' + plotTitle +' - Classification Results'    
+    print "From {} to {}".format(dates[0],dates[-1])                                                               
+    print("Guessed {} out of {} = {}% correct".format(
+        np.sum(targetDirection == estTargetDirection), targetDirection.size, 100*np.sum(targetDirection == estTargetDirection)/targetDirection.size
+    ))     
+  
