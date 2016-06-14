@@ -117,6 +117,20 @@ pricesInputs.append(['ASX200_ACCUMULATION_LAST','Indices','ASA51_PX_LAST',lagAsi
 useReturn = 0
 usePrice = 1
 predictorInputs = []
+# predictorInputs.append(['S&P500_DAILY_PX_LAST',useReturn])
+# predictorInputs.append(['STFINL_DAILY_PX_LAST',useReturn])
+# predictorInputs.append(['SHCOMP_DAILY_PX_LAST',useReturn])
+# predictorInputs.append(['ASX200_INDX_GROSS_DAILY_DIV',usePrice])
+# predictorInputs.append(['AUDUSD_CURRENCY',useReturn])
+# predictorInputs.append(['XAU_CURRENCY',useReturn])
+# predictorInputs.append(['CRUDEOIL_COMMODITY',useReturn])
+# predictorInputs.append(['90D_BANKBILL',useReturn])
+# predictorInputs.append(['OIS_1M',useReturn])
+# predictorInputs.append(['OIS_3M',useReturn])
+# predictorInputs.append(['AUD1Y_SWAP',useReturn])
+# predictorInputs.append(['AUD10Y_GOVT',useReturn])
+# predictorInputs.append(['USD10Y_TNOTE',useReturn])
+# predictorInputs.append(['USDJPY_CURRENCY',useReturn])
 predictorInputs.append(['S&P500_DAILY_PX_LAST',useReturn])
 predictorInputs.append(['STFINL_DAILY_PX_LAST',useReturn])
 predictorInputs.append(['SHCOMP_DAILY_PX_LAST',useReturn])
@@ -240,29 +254,30 @@ for idx in range(len(predictorLabels)):
 testInputImportance = 0
 if(testInputImportance):   
     # fit an Extra Trees model to the data
-#     inputSelectionModel = ExtraTreesClassifier(criterion='entropy')
+    inputSelectionModel = ExtraTreesClassifier(criterion='entropy')
     targetScaledClassDir = np.array([math.copysign(1,npArrayTarget[i]) for i in range(len(npArrayTarget))])
-#     inputSelectionModel.fit(predictorInputDataScaled, targetScaledClassDir)
-#     featureImportanceContent = 100*inputSelectionModel.feature_importances_
+    inputSelectionModel.fit(predictorInputDataScaled, targetScaledClassDir)
+    scores = 100*inputSelectionModel.feature_importances_
     
-    rf = ExtraTreesClassifier(criterion='entropy')#RandomForestRegressor(n_estimators=20, max_depth=4)#ExtraTreesClassifier(criterion='entropy')
-    scoresLabels = []
-    scores = []
-    for i in range(predictorInputDataScaled.shape[1]):
-        score = cross_val_score(rf, predictorInputDataScaled[:, i:i+1], targetScaledClassDir, scoring='accuracy',cv=10)
-        scores.append(round(np.mean(score),2))
-        scoresLabels.append((round(np.mean(score), 2),predictorLabels[i]))
-
-    print '\nPredictor Inputs sorted by cross-validated performance (% accuracy)\n'
-    for feature in sorted(scoresLabels,reverse=True):
-        idx = predictorLabels.index(feature[1])
-        print 'Input '+ str(idx+1) +': \tScore: '+ str(feature[0]) +'\tName: '+ feature[1]
+#     rf = ExtraTreesClassifier(criterion='entropy')#RandomForestRegressor(n_estimators=20, max_depth=4)#ExtraTreesClassifier(criterion='entropy')
+#     scoresLabels = []
+#     scores = []
+#     for i in range(predictorInputDataScaled.shape[1]):
+#         score = cross_val_score(rf, predictorInputDataScaled[:, i:i+1], targetScaledClassDir, scoring='accuracy',cv=10)
+#         scores.append(round(np.mean(score),2))
+#         scoresLabels.append((round(np.mean(score), 2),predictorLabels[i]))
+# 
+#     print '\nPredictor Inputs sorted by cross-validated performance (% accuracy)\n'
+#     for feature in sorted(scoresLabels,reverse=True):
+#         idx = predictorLabels.index(feature[1])
+#         print 'Input '+ str(idx+1) +': \tScore: '+ str(feature[0]) +'\tName: '+ feature[1]
     
     # display the relative importance of each attribute
     fig, ax = plt.subplots()
     ax.bar(np.arange(len(predictorLabels)), scores,label=predictorLabels,color='r')
     plt.xlabel('Predictor Labels')
-    plt.ylabel('% accuracy')
+    #plt.ylabel('% accuracy')
+    plt.ylabel('Relative Importance')
     #plt.legend(loc='upper center',bbox_to_anchor=(0.5,-0.05))
     plt.title('Predictor Input cross-validated performance to classify: '+targetLabel +'_DIR')
     # put the major ticks at the middle of each cell
@@ -272,30 +287,30 @@ if(testInputImportance):
     ax.set_xticklabels(range(1,len(predictorLabels)+1))
     plt.show() 
     
-    # fit an Extra Trees model to the data
-#     inputSelectionModel = RandomForestRegressor(n_estimators=20, max_depth=4)
-#     inputSelectionModel.fit(predictorInputDataScaled, npArrayTarget[:,0])
-#     featureImportanceContent = 100*inputSelectionModel.feature_importances_
-#     scores = featureImportanceContent
+    inputSelectionModel = RandomForestRegressor(n_estimators=len(predictorLabels), max_depth=5)
+    inputSelectionModel.fit(predictorInputDataScaled, npArrayTarget[:,0])
+    featureImportanceContent = 100*inputSelectionModel.feature_importances_
+    scores = featureImportanceContent
 
-    rf = RandomForestRegressor(n_estimators=5, max_depth=2)
-    scoresLabels = []
-    scores = []    
-    for i in range(predictorInputDataScaled.shape[1]):
-        score = cross_val_score(rf, predictorInputDataScaled[:, i:i+1], npArrayTarget[:,0], scoring='r2',cv=10)
-        scores.append(round(np.mean(score),2))
-        scoresLabels.append((round(np.mean(score), 2),predictorLabels[i]))
- 
-    print '\nPredictor Inputs sorted by cross-validated performance (R2 score)\n'
-    for feature in sorted(scoresLabels,reverse=True):
-        idx = predictorLabels.index(feature[1])
-        print 'Input '+ str(idx+1) +': \tScore: '+ str(feature[0]) +'\tName: '+ feature[1]
+#     rf = RandomForestRegressor(n_estimators=20, max_depth=6)
+#     scoresLabels = []
+#     scores = []    
+#     for i in range(predictorInputDataScaled.shape[1]):
+#         score = cross_val_score(rf, predictorInputDataScaled, npArrayTarget[:,0], scoring='r2',cv=10)
+#         scores.append(round(np.mean(score),2))
+#         scoresLabels.append((round(np.mean(score), 2),predictorLabels[i]))
+#  
+#     print '\nPredictor Inputs sorted by cross-validated performance (R2 score)\n'
+#     for feature in sorted(scoresLabels,reverse=True):
+#         idx = predictorLabels.index(feature[1])
+#         print 'Input '+ str(idx+1) +': \tScore: '+ str(feature[0]) +'\tName: '+ feature[1]
     
     # display the relative importance of each attribute
     fig, ax = plt.subplots()
     ax.bar(np.arange(len(predictorLabels)), scores,label=predictorLabels,color='r')
     plt.xlabel('Predictor Labels')
-    plt.ylabel('R2 Score')
+    #plt.ylabel('R2 Score')
+    plt.ylabel('Relative Importance')
     #plt.legend(loc='upper center',bbox_to_anchor=(0.5,-0.05))
     plt.title('Predictor Inputs cross-validated performance on: '+targetLabel)
     # put the major ticks at the middle of each cell
@@ -385,11 +400,14 @@ if(runGRNN):
         RMSLE_GRNN = []
         minRMSLE = 1e10
         bestStd = 0
+        splitIdx = int(len(trainRange)/2)
+        trainRangeFold1 = trainRange[:splitIdx]
+        trainRangeFold2 = trainRange[(splitIdx+1):]
         print('GRNN Training Results - Test Std dev input')  
         for x in grnnStd:
             grnnNW = algorithms.GRNN(std=x, verbose=False)
-            grnnNW.train(x_train, y_train)
-            networkRMSLE = estimators.rmsle(y_test[:,0], grnnNW.predict(x_test)[:,0])
+            grnnNW.train(x_train[trainRangeFold1,:], y_train[trainRangeFold1,:])
+            networkRMSLE = estimators.rmsle(y_train[trainRangeFold2,:], grnnNW.predict(x_train[trainRangeFold2,:])[:,0])
             
             if(minRMSLE > networkRMSLE):
                 minRMSLE = networkRMSLE
@@ -400,9 +418,9 @@ if(runGRNN):
         plt.figure
         p1, = plt.plot(grnnStd, RMSLE_GRNN,'b')
         plt.xlabel('GRNN Std.')
-        plt.ylabel('Test RMSLE')
+        plt.ylabel('Train RMSLE')
         plt.grid(True)       
-        plt.title('Test RMSLE to determine GRNN Std. Input')
+        plt.title('Train RMSLE to determine GRNN Std. Input')
         plt.show() 
     
         grnnNW = algorithms.GRNN(std=bestStd, verbose=True)
@@ -436,7 +454,7 @@ if(runGRNN):
         strategyPNL[-1], accumulationPNL[-1]
     ))  
         
-runOLS = 1
+runOLS = 0
 if(runOLS):
     OLS_ObjName = 'OLS_LevelPredictor'
     trainOLS = 0

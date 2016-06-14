@@ -267,7 +267,7 @@ if(checkInputScaling):
 
 #hiddenNeurons = [5,10,15,20,25,30,40,50,60]
 trainNetwork = 0
-hiddenNeurons = 29
+hiddenNeurons = 27
 Feedforward_MLP_NetworkName = 'Feedforward_MLP_ext'+ targetChoice +'_'+ classifyDirection                   
  
 if(trainNetwork):
@@ -321,34 +321,61 @@ print(Feedforward_MLP_NetworkName+": Strategy PNL = {}, Buy-Hold PNL = {}".forma
     strategyPNL[-1], accumulationPNL[-1]
 )) 
     
-#pnnStd = np.linspace(0.01, 3, 200)
-pnnStd = [1.25]
+pnnStd = np.linspace(0.1, 2.5, 75) 
+#pnnStd = [2]
 PNN_NetworkName = 'PNN_Network'                      
+trainNetwork = 1
+if(trainNetwork):  
+    RMSLE_PNN = []
+    minRMSLE = 1e10
+    bestStd = 0
+    splitIdx = int(len(trainRange)/2)
+    trainRangeFold1 = trainRange[:splitIdx]
+    trainRangeFold2 = trainRange[(splitIdx+1):]
+    print('PNN Training Results - Train Std dev input')  
+    for x in pnnStd:
+        nw = algorithms.PNN(std=x, verbose=False)
+        nw.train(x_trainPNN[trainRangeFold1,:], y_trainPNN[trainRangeFold1,:])
+        networkRMSLE = estimators.rmsle(y_trainPNN[trainRangeFold2,:], nw.predict(x_trainPNN[trainRangeFold2,:]))
+                   
+        if(minRMSLE > networkRMSLE):
+            minRMSLE = networkRMSLE
+            bestStd = x
+            
+        RMSLE_PNN.append(networkRMSLE)
 
-print('PNN Classification Results - Test Std dev input')  
-for x in pnnStd:
-    nw = algorithms.PNN(std=x, verbose=True)
-    nw.train(x_trainPNN, y_trainPNN)
-   
+    plt.figure
+    p1, = plt.plot(pnnStd, RMSLE_PNN,'b')
+    plt.xlabel('PNN Std.')
+    plt.ylabel('Train RMSLE')
+    plt.grid(True)       
+    plt.title('Train RMSLE to determine PNN Std. Input')
+    plt.show() 
+
+    nw = algorithms.PNN(std=bestStd, verbose=True)
+    nw.train(x_trainPNN, y_trainPNN)       
+    getData.save_network(nw,PNN_NetworkName)  
+                       
     y_predict = nw.predict(x_trainPNN)
     targetDirection = np.transpose(target_scalerPNN.inverse_transform(y_trainPNN))
     estTargetDirection = target_scalerPNN.inverse_transform(y_predict)
     
     print('Train PNN Est - Classification Results')                                                                     
-    print(PNN_NetworkName+": Std dev {}: Guessed {} out of {} = {}% correct".format(
-        x, np.sum(targetDirection == estTargetDirection), targetDirection.size, 100*np.sum(targetDirection == estTargetDirection)/targetDirection.size
+    print(PNN_NetworkName+": Guessed {} out of {} = {}% correct".format(
+        np.sum(targetDirection == estTargetDirection), targetDirection.size, 100*np.sum(targetDirection == estTargetDirection)/targetDirection.size
     )) 
-    
+else:
+    nw = getData.load_network(PNN_NetworkName)  
+              
 nw.plot_errors()          
-getData.save_network(nw,PNN_NetworkName)
 
 y_predict = nw.predict(x_testPNN)
 targetDirection = np.transpose(target_scalerPNN.inverse_transform(y_testPNN))
 estTargetDirection = target_scalerPNN.inverse_transform(y_predict)
 
 print('Test PNN Est - Classification Results')                                                                     
-print(PNN_NetworkName+": Std dev {}: Guessed {} out of {} = {}% correct".format(
-    x, np.sum(targetDirection == estTargetDirection), targetDirection.size, 100*np.sum(targetDirection == estTargetDirection)/targetDirection.size
+print(PNN_NetworkName+": Guessed {} out of {} = {}% correct".format(
+    np.sum(targetDirection == estTargetDirection), targetDirection.size, 100*np.sum(targetDirection == estTargetDirection)/targetDirection.size
 ))
 
 strategyPNL,buyHoldPNL,accumulationPNL = util.getIntraDayPNL(accumulationClosePrices,y_predict,[npArrayTargetOpenPrices[i] for i in testRange],[npArrayTargetPrices[i] for i in testRange],dailyInterestRate,testStrategy)
